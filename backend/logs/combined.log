@@ -1,0 +1,26 @@
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T19:55:21.322Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T19:55:21.324Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T19:55:21.324Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:19:56:55 +0000] \"GET /health HTTP/1.1\" 200 149 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T19:56:55.688Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:19:57:15 +0000] \"GET /api/predictions HTTP/1.1\" 200 241933 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T19:57:15.767Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T19:59:06.405Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T19:59:06.408Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T19:59:06.408Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:19:59:09 +0000] \"GET /api/predictions HTTP/1.1\" 200 33002 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T19:59:09.208Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:19:59:42 +0000] \"GET /api/predictions HTTP/1.1\" 200 33002 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T19:59:42.894Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T20:01:25.967Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T20:01:25.970Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T20:01:25.970Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T20:01:42.677Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T20:01:42.679Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T20:01:42.679Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:20:01:45 +0000] \"GET /api/predictions HTTP/1.1\" 200 415446 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T20:01:45.941Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:20:02:08 +0000] \"GET /api/predictions/V7201-D HTTP/1.1\" 200 1950 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T20:02:08.678Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T20:15:50.068Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T20:15:50.070Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T20:15:50.071Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:20:15:56 +0000] \"GET /api/predictions/V7201-D HTTP/1.1\" 200 2230 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T20:15:56.230Z"}
+{"level":"info","message":"127.0.0.1 - - [03/Apr/2025:20:17:03 +0000] \"GET /api/predictions HTTP/1.1\" 200 478331 \"-\" \"PostmanRuntime/7.39.1\"","timestamp":"2025-04-03T20:17:03.219Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-03T20:22:50.703Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-03T20:22:50.706Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-03T20:22:50.706Z"}
