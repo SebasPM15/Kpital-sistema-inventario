@@ -1,0 +1,124 @@
+2025-04-03 12:10:10,433 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:10:10,433 - INFO - Cargando modelo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../models/prophet_model.pkl.gz
+2025-04-03 12:10:10,885 - INFO - Modelo cargado exitosamente
+2025-04-03 12:10:10,885 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\uploaded_file.xlsx
+2025-04-03 12:10:10,885 - ERROR - Error en carga de datos: Archivo no encontrado: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data/uploaded_file.xlsx
+2025-04-03 12:10:42,230 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:10:42,230 - INFO - Cargando modelo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../models/prophet_model.pkl.gz
+2025-04-03 12:10:42,653 - INFO - Modelo cargado exitosamente
+2025-04-03 12:10:42,653 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:10:42,927 - INFO - Archivo leído correctamente
+2025-04-03 12:10:42,927 - INFO - Calculando predicciones...
+2025-04-03 12:10:42,944 - ERROR - Error en cálculos: name 'self' is not defined
+2025-04-03 12:16:25,366 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:16:25,366 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:16:25,612 - INFO - Archivo leído correctamente
+2025-04-03 12:16:25,612 - INFO - Calculando predicciones...
+2025-04-03 12:16:25,674 - INFO - Resultados guardados exitosamente
+2025-04-03 12:16:25,674 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 12:17:24,718 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:17:24,718 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\uploaded_file.xlsx
+2025-04-03 12:17:24,718 - ERROR - Error en carga de datos: Archivo no encontrado: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data/uploaded_file.xlsx
+2025-04-03 12:18:20,150 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:18:20,150 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:18:20,371 - INFO - Archivo leído correctamente
+2025-04-03 12:18:20,371 - INFO - Calculando predicciones...
+2025-04-03 12:18:20,428 - INFO - Resultados guardados exitosamente
+2025-04-03 12:18:20,428 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 12:38:02,549 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:38:02,549 - INFO - 🌀 Cargando modelo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../models/prophet_model.pkl.gz
+2025-04-03 12:38:03,003 - INFO - ✅ Modelo cargado exitosamente
+2025-04-03 12:38:03,003 - INFO - 📂 Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:38:03,253 - INFO - ✅ Archivo leído correctamente
+2025-04-03 12:38:04,263 - ERROR - ❌ Error procesando producto V4240-D: 'float' object has no attribute 'strip'
+2025-04-03 12:38:04,538 - ERROR - ❌ Error procesando producto V7222-L: 'float' object has no attribute 'strip'
+2025-04-03 12:38:04,646 - ERROR - ❌ Error procesando producto SER-CODBACTOBIOLOGY: 'int' object has no attribute 'strip'
+2025-04-03 12:38:04,719 - ERROR - ❌ Error procesando producto V4262-L: 'float' object has no attribute 'strip'
+2025-04-03 12:38:05,176 - ERROR - ❌ Error procesando producto CMB-FLUVJ1000: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,269 - ERROR - ❌ Error procesando producto 20903: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,278 - ERROR - ❌ Error procesando producto CM75-SOLVENT-Q: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,287 - ERROR - ❌ Error procesando producto K-SOL-Q: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,295 - ERROR - ❌ Error procesando producto RMS-Q: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,311 - ERROR - ❌ Error procesando producto T-BKP-P: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,319 - ERROR - ❌ Error procesando producto V505-D: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,328 - ERROR - ❌ Error procesando producto V820-D: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,378 - ERROR - ❌ Error procesando producto SER-CODRIVADEI: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,394 - ERROR - ❌ Error procesando producto KELL-CODSER: 'int' object has no attribute 'strip'
+2025-04-03 12:38:05,578 - ERROR - ❌ Error procesando producto 280: cannot convert float NaN to integer
+2025-04-03 12:38:05,586 - ERROR - ❌ Error procesando producto 30: cannot convert float NaN to integer
+2025-04-03 12:38:05,603 - ERROR - ❌ Error procesando producto 13: cannot convert float NaN to integer
+2025-04-03 12:38:05,611 - ERROR - ❌ Error procesando producto 16: cannot convert float NaN to integer
+2025-04-03 12:38:05,628 - ERROR - ❌ Error procesando producto 0: cannot convert float NaN to integer
+2025-04-03 12:38:05,636 - ERROR - ❌ Error procesando producto 6: cannot convert float NaN to integer
+2025-04-03 12:38:05,653 - ERROR - ❌ Error procesando producto 0: cannot convert float NaN to integer
+2025-04-03 12:38:05,661 - ERROR - ❌ Error procesando producto 0: cannot convert float NaN to integer
+2025-04-03 12:38:05,670 - ERROR - ❌ Error procesando producto 0: cannot convert float NaN to integer
+2025-04-03 12:38:05,686 - INFO - 💾 Resultados guardados en: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_unificadas.json
+2025-04-03 12:38:05,695 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 12:45:55,505 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:45:55,505 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:45:55,802 - INFO - Archivo leído correctamente
+2025-04-03 12:45:55,810 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 12:45:56,178 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 12:45:56,178 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 12:45:56,178 - INFO - Calculando predicciones...
+2025-04-03 12:45:56,241 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 12:45:56,241 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 12:47:17,744 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:47:17,744 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:47:18,032 - INFO - Archivo leído correctamente
+2025-04-03 12:47:18,032 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 12:47:18,468 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 12:47:18,468 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 12:47:18,468 - INFO - Calculando predicciones...
+2025-04-03 12:47:18,536 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 12:47:18,536 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 12:50:39,252 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 12:50:39,252 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 12:50:39,553 - INFO - Archivo leído correctamente
+2025-04-03 12:50:39,561 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 12:50:40,019 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 12:50:40,019 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 12:50:40,019 - INFO - Calculando predicciones...
+2025-04-03 12:50:40,121 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 12:50:40,145 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 12:50:40,148 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 15:11:24,284 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 15:11:24,284 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 15:11:24,548 - INFO - Archivo leído correctamente
+2025-04-03 15:11:24,561 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 15:11:25,007 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 15:11:25,007 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 15:11:25,007 - INFO - Calculando predicciones...
+2025-04-03 15:11:25,123 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 15:11:25,148 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 15:11:25,148 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 15:12:16,137 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 15:12:16,137 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 15:12:16,368 - INFO - Archivo leído correctamente
+2025-04-03 15:12:16,368 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 15:12:16,697 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 15:12:16,697 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 15:12:16,697 - INFO - Calculando predicciones...
+2025-04-03 15:12:16,795 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 15:12:16,822 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 15:12:16,822 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 15:12:51,016 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 15:12:51,016 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 15:12:51,228 - INFO - Archivo leído correctamente
+2025-04-03 15:12:51,228 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 15:12:51,578 - ERROR - Error al cargar modelo Prophet: invalid load key, '\x10'.
+2025-04-03 15:12:51,578 - WARNING - Continuando sin modelo Prophet, usando método estadístico alternativo
+2025-04-03 15:12:51,578 - INFO - Calculando predicciones...
+2025-04-03 15:12:51,688 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 15:12:51,711 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 15:12:51,711 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 15:15:32,913 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 15:15:32,913 - INFO - Cargando archivo: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-03 15:15:33,173 - INFO - Archivo leído correctamente
+2025-04-03 15:15:33,173 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\models\prophet_model.pkl.gz
+2025-04-03 15:15:33,602 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 15:15:33,619 - INFO - Calculando predicciones...
+2025-04-03 15:15:33,721 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.json
+2025-04-03 15:15:33,754 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\Proyectos personales\Pasantia\sistema-prediccion-automatizado - copia\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 15:15:33,757 - INFO - === PROCESO COMPLETADO ===
