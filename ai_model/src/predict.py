@@ -25,6 +25,8 @@ parser.add_argument('--excel', type=str,
 parser.add_argument('--model', type=str,
                    default=os.path.join(os.path.dirname(__file__), '../models/prophet_model.pkl.gz'),
                    help='Ruta al modelo Prophet comprimido')
+parser.add_argument('--transito', type=float, default=0.0,
+                   help='Unidades en tránsito disponibles para asignación (no se aplican automáticamente)')
 args = parser.parse_args()
 
 # Diccionario de meses en español
@@ -332,26 +334,48 @@ def calcular_predicciones(df, prophet_predictions=None):
             
             # Información del producto (manteniendo estructura original)
             producto_info = {
+                # Identificación del producto
                 "CODIGO": str(row["CODIGO"]),
                 "DESCRIPCION": str(row["DESCRIPCION"]),
-                "UNID_POR_CAJA": float(row["UNID/CAJA"]),
-                "STOCK_ACTUAL": float(row["STOCK  TOTAL"]),
+                
+                # Unidades y stock
+                "UNIDADES_POR_CAJA": float(row["UNID/CAJA"]),
+                "STOCK_FISICO": float(row["STOCK  TOTAL"]),  # Stock físico real
+                "UNIDADES_TRANSITO_DISPONIBLES": max(float(args.transito), 0),  # Nunca negativo
+                "STOCK_TOTAL": float(row["STOCK  TOTAL"]),  # Stock físico + transito asignado
+                
+                # Cálculos de consumo
                 "CONSUMO_PROMEDIO": float(row["PROM CONSU"]),
-                "PROYECCION_CONSUMO": float(row["Proyec de  Conss"]),
-                "CONSUMO_TOTAL_PROYECTADO": float(row["PROM CONS+Proyec"]),
+                "CONSUMO_PROYECTADO": float(row["Proyec de  Conss"]),
+                "CONSUMO_TOTAL": float(row["PROM CONS+Proyec"]),
                 "CONSUMO_DIARIO": float(row["DIARIO"]),
+                
+                # Puntos de reorden
                 "STOCK_SEGURIDAD": float(row["SS"]),
                 "STOCK_MINIMO": float(row["STOCK MINIMO (Prom + SS)"]),
                 "PUNTO_REORDEN": float(row["PUNTO DE REORDEN (44 días)"]),
-                "DEFICIT_ACTUAL": float(row["DEFICIT"]),
-                "CAJAS_NECESARIAS": float(row["CAJAS NECESARIAS"]),
-                "CAJAS_A_PEDIR": int(row["CAJAS A PEDIR"]),
-                "UNIDADES_A_PEDIR": float(row["UNIDADES A PEDIR"]),
+                
+                # Indicadores actualizables
+                "DEFICIT": max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0),
+                "CAJAS_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))),
+                "UNIDADES_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))) * float(row["UNID/CAJA"]),
                 "FECHA_REPOSICION": fecha_reposicion_str,
-                "TIEMPO_COBERTURA": round(tiempo_cobertura, 2),
-                "FRECUENCIA_REPOSICION": round(frecuencia_reposicion, 2),
-                "CONSUMOS_HISTORICOS": consumos_historicos,
-                "PREDICCION": proyecciones
+                "DIAS_COBERTURA": round(tiempo_cobertura, 2),
+                
+                # Datos históricos
+                "HISTORICO_CONSUMOS": consumos_historicos,
+                
+                # Proyecciones futuras
+                "PROYECCIONES": proyecciones,
+                
+                # Configuración para recálculos
+                "CONFIGURACION": {
+                    "DIAS_STOCK_SEGURIDAD": 19,
+                    "DIAS_PUNTO_REORDEN": 44,
+                    "LEAD_TIME_REPOSICION": 15,
+                    "DIAS_MAX_REPOSICION": 30,
+                    "DIAS_LABORALES_MES": 22
+                }
             }
             
             resultados_completos.append(producto_info)

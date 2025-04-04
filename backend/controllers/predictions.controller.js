@@ -62,3 +62,38 @@ export const refreshPredictions = async (req, res) => {
         handleHttpError(res, 'ERROR_REFRESH_PREDICTIONS', error);
     }
 };
+
+export const applyTransitUnits = async (req, res) => {
+    try {
+        const { code } = req.params;
+        const { units } = req.body;
+
+        // Validaciones básicas
+        if (!units || isNaN(units) || units < 0) {
+            return handleHttpError(res, 'INVALID_UNITS', 
+                new Error('Las unidades en tránsito deben ser un número positivo'), 400);
+        }
+
+        // Obtener datos actuales
+        const currentData = await pythonService.getLatestPredictions();
+        const product = currentData.find(p => p.CODIGO === code);
+        
+        if (!product) {
+            return handleHttpError(res, 'PRODUCT_NOT_FOUND', 
+                new Error(`Producto con código ${code} no encontrado`), 404);
+        }
+
+        // Eliminar la validación de unidades disponibles
+        // Aplicar las unidades directamente
+        const updatedData = await pythonService.applyTransitUnits(code, parseFloat(units));
+        const updatedProduct = updatedData.find(p => p.CODIGO === code);
+
+        res.json({
+            success: true,
+            message: `Unidades en tránsito aplicadas al producto ${code}`,
+            data: updatedProduct
+        });
+    } catch (error) {
+        handleHttpError(res, 'ERROR_APPLYING_TRANSIT_UNITS', error);
+    }
+};
