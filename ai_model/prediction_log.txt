@@ -131,3 +131,30 @@
 2025-04-04 01:10:17,589 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
 2025-04-04 01:10:17,614 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
 2025-04-04 01:10:17,614 - INFO - === PROCESO COMPLETADO ===
+2025-04-04 12:29:59,518 - INFO - === INICIO DEL PROCESO ===
+2025-04-04 12:29:59,518 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-04 12:29:59,822 - INFO - Archivo leído correctamente
+2025-04-04 12:29:59,828 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-04 12:30:00,416 - INFO - Modelo Prophet cargado correctamente
+2025-04-04 12:30:00,428 - INFO - Calculando predicciones...
+2025-04-04 12:30:00,560 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-04 12:30:00,588 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-04 12:30:00,593 - INFO - === PROCESO COMPLETADO ===
+2025-04-04 12:40:11,925 - INFO - === INICIO DEL PROCESO ===
+2025-04-04 12:40:11,925 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-04 12:40:12,211 - INFO - Archivo leído correctamente
+2025-04-04 12:40:12,216 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-04 12:40:12,720 - INFO - Modelo Prophet cargado correctamente
+2025-04-04 12:40:12,720 - INFO - Calculando predicciones...
+2025-04-04 12:40:12,859 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-04 12:40:12,890 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-04 12:40:12,890 - INFO - === PROCESO COMPLETADO ===
+2025-04-04 12:56:45,008 - INFO - === INICIO DEL PROCESO ===
+2025-04-04 12:56:45,008 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-04-04 12:56:45,304 - INFO - Archivo leído correctamente
+2025-04-04 12:56:45,310 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-04 12:56:45,855 - INFO - Modelo Prophet cargado correctamente
+2025-04-04 12:56:45,868 - INFO - Calculando predicciones...
+2025-04-04 12:56:45,997 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-04 12:56:46,030 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-04 12:56:46,030 - INFO - === PROCESO COMPLETADO ===

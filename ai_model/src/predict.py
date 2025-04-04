@@ -235,40 +235,74 @@ def calcular_predicciones(df, prophet_predictions=None):
             proyecciones = []
             stock_actual = row["STOCK  TOTAL"]
             
+            # Cálculo de fecha de reposición (modificado según solicitud)
+            lead_time_days = 15  # Tiempo de entrega en días
+            fecha_actual = datetime(2025, 3, 1)
+            max_dias_reposicion = 30  # Nuevo parámetro: máximo días para reposición
+            
+            if row["DIARIO"] > 0:
+                # Cálculo de días hasta punto de reorden
+                dias_hasta_reorden = max((row["PUNTO DE REORDEN (44 días)"] - row["STOCK  TOTAL"]) / row["DIARIO"], 0)
+                
+                # Aplicar límite máximo
+                dias_hasta_reorden = min(dias_hasta_reorden, max_dias_reposicion)
+                
+                # Fecha de reposición considerando lead time
+                fecha_reposicion = fecha_actual + timedelta(days=max(dias_hasta_reorden - lead_time_days, 0))
+                fecha_reposicion_str = fecha_reposicion.strftime("%Y-%m-%d")
+                
+                # Cálculo de tiempo de cobertura inicial (días de stock actual)
+                tiempo_cobertura = min(row["STOCK  TOTAL"] / row["DIARIO"], max_dias_reposicion)
+                
+                # Frecuencia sugerida de reposición (basada en consumo histórico)
+                frecuencia_reposicion = min(row["PUNTO DE REORDEN (44 días)"] / row["DIARIO"], max_dias_reposicion)
+            else:
+                fecha_reposicion_str = "No aplica"
+                tiempo_cobertura = 0
+                frecuencia_reposicion = 0
+            
             for mes in range(1, 7):  # 6 meses de proyección
                 fecha = datetime(2025, 3, 1) + timedelta(days=mes * 30)
                 
                 # Determinar consumo mensual usando Prophet si está disponible
                 if prophet_predictions and row["CODIGO"] in prophet_predictions:
-                    # Obtener predicción de Prophet para este mes
                     pred_date = datetime(2025, 2 + mes, 15)
                     prophet_pred = next((p for p in prophet_predictions[row["CODIGO"]] 
-                                        if pd.Timestamp(p['ds']).month == pred_date.month 
-                                        and pd.Timestamp(p['ds']).year == pred_date.year), None)
+                                      if pd.Timestamp(p['ds']).month == pred_date.month 
+                                      and pd.Timestamp(p['ds']).year == pred_date.year), None)
                     
-                    if prophet_pred:
-                        # Usar predicción de Prophet
-                        consumo = max(prophet_pred['yhat'], 0)
-                    else:
-                        # Método convencional con factor de crecimiento
-                        consumo = row["PROM CONS+Proyec"] * (1.02 ** mes)
+                    consumo = max(prophet_pred['yhat'], 0) if prophet_pred else row["PROM CONS+Proyec"] * (1.02 ** mes)
                 else:
-                    # Método convencional con factor de crecimiento
                     consumo = row["PROM CONS+Proyec"] * (1.02 ** mes)
                 
                 diario = consumo / 22
-                
-                # Cálculo dual
+                ss_mes = diario * 19
                 stock_minimo = consumo + (diario * 19)
-                punto_reorden = diario * 44
+                punto_reorden_mes = diario * 44
                 
-                stock_despues_consumo  = max(stock_actual - consumo, 0)
-                necesita_pedir = max(punto_reorden - stock_despues_consumo, 0)
-                cajas_a_pedir = int(np.ceil(necesita_pedir / row["UNID/CAJA"]))
-                unidades_a_pedir = cajas_a_pedir * row["UNID/CAJA"]
+                stock_despues_consumo = max(stock_actual - consumo, 0)
+                deficit = max(punto_reorden_mes - stock_despues_consumo, 0)
+                cajas_pedir = int(np.ceil(deficit / row["UNID/CAJA"]))
+                unidades_pedir = cajas_pedir * row["UNID/CAJA"]
+                stock_proyectado = stock_despues_consumo + unidades_pedir
                 
-                # Añadir unidades pedidas al stock
-                stock_proyectado = stock_despues_consumo + unidades_a_pedir
+                # Nuevos cálculos para este mes
+                if diario > 0:
+                    tiempo_cob_mes = min(
+                        max(stock_proyectado - ss_mes, 0) / diario,  # Aseguramos no negativo
+                        max_dias_reposicion
+                    )
+                    fecha_rep_mes = (fecha + timedelta(
+                        days=max(tiempo_cob_mes - lead_time_days, 0)
+                    )).strftime("%Y-%m-%d")
+                    frecuencia_rep_mes = min(
+                        punto_reorden_mes / diario,
+                        max_dias_reposicion
+                    )
+                else:
+                    fecha_rep_mes = "No aplica"
+                    tiempo_cob_mes = 0
+                    frecuencia_rep_mes = 0           
                 
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[fecha.month]}-{fecha.year}",
@@ -277,32 +311,26 @@ def calcular_predicciones(df, prophet_predictions=None):
                     "consumo_diario": round(diario, 2),
                     "stock_seguridad": round(diario * 19, 2),
                     "stock_minimo": round(stock_minimo, 2),
-                    "punto_reorden": round(punto_reorden, 2),
-                    "deficit": round(necesita_pedir, 2),
-                    "cajas_a_pedir": cajas_a_pedir,
-                    "unidades_a_pedir": round(unidades_a_pedir, 2),
-                    "alerta_stock": bool(stock_despues_consumo < punto_reorden)
+                    "punto_reorden": round(punto_reorden_mes, 2),
+                    "deficit": round(deficit, 2),
+                    "cajas_a_pedir": cajas_pedir,
+                    "unidades_a_pedir": round(unidades_pedir, 2),
+                    "alerta_stock": bool(stock_despues_consumo < punto_reorden_mes),
+                    "fecha_reposicion": fecha_rep_mes,
+                    "tiempo_cobertura": round(tiempo_cob_mes, 2),
+                    "frecuencia_reposicion": round(frecuencia_rep_mes, 2)                    
                 }
                 
                 proyecciones.append(info_mes)
                 stock_actual = stock_proyectado
             
-            # Obtener datos históricos de consumo de todas las columnas disponibles
-            consumos_historicos = {}
+            # Obtener datos históricos de consumo
+            consumos_historicos = {
+                col.split()[1] + "_" + col.split()[2]: row[col]
+                for col in df.columns if col.startswith("CONS ") and len(col.split()) >= 3
+            }
             
-            # Recorrer todas las columnas que empiezan con "CONS"
-            for col in df.columns:
-                if col.startswith("CONS "):
-                    # Extraer mes y año del nombre de la columna
-                    parts = col.split()
-                    if len(parts) >= 3:
-                        mes = parts[1]
-                        año = parts[2]
-                        # Convertir a formato consistente
-                        key = f"CONS_{mes}_{año}"
-                        consumos_historicos[key] = float(row.get(col, 0))
-            
-            # Información del producto
+            # Información del producto (manteniendo estructura original)
             producto_info = {
                 "CODIGO": str(row["CODIGO"]),
                 "DESCRIPCION": str(row["DESCRIPCION"]),
@@ -319,7 +347,10 @@ def calcular_predicciones(df, prophet_predictions=None):
                 "CAJAS_NECESARIAS": float(row["CAJAS NECESARIAS"]),
                 "CAJAS_A_PEDIR": int(row["CAJAS A PEDIR"]),
                 "UNIDADES_A_PEDIR": float(row["UNIDADES A PEDIR"]),
-                "CONSUMOS_HISTORICOS": consumos_historicos,  # Ahora incluye todos los consumos disponibles
+                "FECHA_REPOSICION": fecha_reposicion_str,
+                "TIEMPO_COBERTURA": round(tiempo_cobertura, 2),
+                "FRECUENCIA_REPOSICION": round(frecuencia_reposicion, 2),
+                "CONSUMOS_HISTORICOS": consumos_historicos,
                 "PREDICCION": proyecciones
             }
             
