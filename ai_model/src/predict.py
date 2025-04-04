@@ -262,14 +262,17 @@ def calcular_predicciones(df, prophet_predictions=None):
                 stock_minimo = consumo + (diario * 19)
                 punto_reorden = diario * 44
                 
-                stock_proyectado = max(stock_actual - consumo, 0)
-                necesita_pedir = max(punto_reorden - stock_proyectado, 0)
+                stock_despues_consumo  = max(stock_actual - consumo, 0)
+                necesita_pedir = max(punto_reorden - stock_despues_consumo, 0)
                 cajas_a_pedir = int(np.ceil(necesita_pedir / row["UNID/CAJA"]))
                 unidades_a_pedir = cajas_a_pedir * row["UNID/CAJA"]
                 
+                # Añadir unidades pedidas al stock
+                stock_proyectado = stock_despues_consumo + unidades_a_pedir
+                
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[fecha.month]}-{fecha.year}",
-                    "stock_actual": round(stock_proyectado, 2),
+                    "stock_proyectado": round(stock_proyectado, 2),
                     "consumo_mensual": round(consumo, 2),
                     "consumo_diario": round(diario, 2),
                     "stock_seguridad": round(diario * 19, 2),
@@ -278,7 +281,7 @@ def calcular_predicciones(df, prophet_predictions=None):
                     "deficit": round(necesita_pedir, 2),
                     "cajas_a_pedir": cajas_a_pedir,
                     "unidades_a_pedir": round(unidades_a_pedir, 2),
-                    "alerta_stock": bool(stock_proyectado < punto_reorden)
+                    "alerta_stock": bool(stock_despues_consumo < punto_reorden)
                 }
                 
                 proyecciones.append(info_mes)
