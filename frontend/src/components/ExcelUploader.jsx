@@ -4,6 +4,7 @@ import { read, utils } from 'xlsx';
 import axios from 'axios';
 import ColumnMapper from './ColumnMapper';
 import { uploadExcelForPredictions } from '../services/api';
+import LoadingState from './LoadingState';
 
 /**
  * @component ExcelUploader
@@ -493,7 +494,16 @@ const ExcelUploader = ({ onComplete }) => {
   };
 
   return (
-    <div className="excel-uploader bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300" role="region" aria-labelledby="excel-uploader-title">
+    <div className="excel-uploader bg-white p-6 rounded-xl shadow-sm hover:shadow-md transition-all duration-300 relative" role="region" aria-labelledby="excel-uploader-title">
+      {/* Overlay de carga durante la subida del archivo al backend */}
+      {uploadingToBackend && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
+          <div className="max-w-md w-full p-6">
+            <LoadingState message="Subiendo archivo Excel al servidor. Por favor espere..." />
+          </div>
+        </div>
+      )}
+      
       <h3 id="excel-uploader-title" className="text-lg font-semibold mb-4 flex items-center">
         <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />

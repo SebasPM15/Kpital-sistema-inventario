@@ -22,6 +22,9 @@ function InventoryCalculator() {
   const [hoveredRow, setHoveredRow] = useState(null);
   const [backendProducts, setBackendProducts] = useState([]);
   const [loadingBackendProducts, setLoadingBackendProducts] = useState(false);
+  const [showTransitModal, setShowTransitModal] = useState(false);
+  const [transitQuantity, setTransitQuantity] = useState(0);
+  const [selectedProductData, setSelectedProductData] = useState(null);
 
   useEffect(() => {
     if (isExcelLoaded) {
@@ -49,18 +52,18 @@ function InventoryCalculator() {
     }
   };
 
-  const calculateInventory = useCallback(async (productData) => {
+  const calculateInventory = useCallback(async (productData, unidadesTransito = 0) => {
     setLoading(true);
     setError(null);
     setShowProductTable(false);
 
     try {
       const code = productData[columnMappings.codigo];
-      console.log('Solicitando predicción para código:', code);
+      console.log('Solicitando predicción para código:', code, 'con', unidadesTransito, 'unidades en tránsito');
 
       let backendProduct;
       try {
-        backendProduct = await getPredictionByCode(code);
+        backendProduct = await getPredictionByCode(code, unidadesTransito);
         console.log('Datos recibidos del backend:', backendProduct);
       } catch (fetchError) {
         console.error('Error al obtener datos del backend:', fetchError);
@@ -105,6 +108,9 @@ function InventoryCalculator() {
         stock_seguridad: getCampo(['STOCK_SEGURIDAD', 'SS', 'stock_seguridad', 'StockSeguridad'], 0),
         punto_reorden: getCampo(['PUNTO_REORDEN', 'PUNTO DE REORDEN (44 días)', 'punto_reorden', 'PuntoReorden'], 0),
         stock_minimo: getCampo(['STOCK_MINIMO', 'SS', 'stock_minimo', 'StockMinimo'], 0),
+        cajas_a_pedir: getCampo(['CAJAS_A_PEDIR', 'CAJAS_NECESARIAS', 'cajas_a_pedir', 'CajasAPedir'], undefined),
+        unidades_a_pedir: getCampo(['UNIDADES_A_PEDIR', 'CANT.PEDIR', 'unidades_a_pedir', 'cantidad_pedir', 'UnidadesAPedir'], 0),
+        unidades_transito: unidadesTransito > 0 ? unidadesTransito : getCampo(['UNIDADES_TRANSITO', 'UNIDADES_EN_TRANSITO', 'unidades_transito', 'UnidadesTransito'], undefined),
         stock_proyectado: (() => {
           const directValue = getCampo(['STOCK_PROYECTADO', 'stock_proyectado', 'StockProyectado'], null);
           if (directValue !== null) return directValue;
@@ -165,6 +171,9 @@ function InventoryCalculator() {
         consumos_historicos: backendProduct.CONSUMOS_HISTORICOS || {}
       };
 
+      if (adaptedData.unidades_transito === undefined) delete adaptedData.unidades_transito;
+      if (adaptedData.cajas_a_pedir === undefined) delete adaptedData.cajas_a_pedir;
+
       const prediccion = backendProduct.PREDICCION;
 
       if (prediccion) {
@@ -222,7 +231,6 @@ function InventoryCalculator() {
     }
   }, [columnMappings]);
 
-  // Generate sample prediction data when actual data is not available
   const generateSamplePrediction = (startStock, dailyConsumption) => {
     const prediction = [];
     const today = new Date();
@@ -248,7 +256,6 @@ function InventoryCalculator() {
     return prediction;
   };
 
-  // Adapt daily prediction data from backend format to component format
   const adaptDailyPrediction = (predictions) => {
     if (!predictions) return [];
 
@@ -308,7 +315,6 @@ function InventoryCalculator() {
     }
   };
 
-  // Convert monthly predictions to weekly format
   const adaptWeeklyPrediction = (monthlyPredictions) => {
     if (!monthlyPredictions || !Array.isArray(monthlyPredictions)) return [];
 
@@ -360,9 +366,9 @@ function InventoryCalculator() {
   }, []);
 
   const handleProductSelect = useCallback((productData) => {
-    setSelectedProduct(productData);
-    calculateInventory(productData);
-  }, [calculateInventory]);
+    setSelectedProductData(productData);
+    setShowTransitModal(true);
+  }, []);
 
   const filteredProducts = useMemo(() => {
     if (!excelData || !columnMappings?.codigo || !columnMappings?.nombre) return [];
@@ -652,38 +658,61 @@ function InventoryCalculator() {
                   </div>
 
                   {Object.keys(calculationResult.consumos_historicos || {}).length > 0 && (
-                    <div className="mb-4 bg-gray-50 p-3 rounded-lg">
-                      <div className="flex items-center mb-2">
-                        <svg className="w-4 h-4 mr-1.5 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <div className="mb-6 bg-white p-4 rounded-xl shadow-sm border border-gray-200 overflow-x-auto">
+                      <div className="flex items-center mb-3">
+                        <svg className="w-5 h-5 mr-2 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                         </svg>
-                        <span className="text-sm font-medium text-gray-700">Histórico de Consumos</span>
+                        <h4 className="text-lg font-semibold text-gray-800">Histórico de Consumos</h4>
                       </div>
-                      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                        {Object.entries(calculationResult.consumos_historicos)
-                          .sort(([mesA], [mesB]) => {
-                            const mesesOrden = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 
-                                           'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-                            const mesANombre = mesA.replace('CONS_', '').substring(0, 3);
-                            const mesBNombre = mesB.replace('CONS_', '').substring(0, 3);
-                            
-                            const anioA = mesA.includes('-') ? parseInt(mesA.split('-')[1]) : 0;
-                            const anioB = mesB.includes('-') ? parseInt(mesB.split('-')[1]) : 0;
-                            
-                            if (anioA !== anioB) return anioA - anioB;
-                            return mesesOrden.indexOf(mesANombre) - mesesOrden.indexOf(mesBNombre);
-                          })
-                          .map(([mes, valor]) => (
-                            <div key={mes} className="bg-white p-2 rounded border border-gray-200 text-center transform hover:scale-105 transition-all duration-200 hover:shadow-sm">
-                              <div className="text-xs text-blue-600 font-medium">
-                                {mes.replace('CONS_', '').replace(/_/g, ' ')}
-                              </div>
-                              <div className="text-gray-800 font-bold text-sm">
-                                {typeof valor === 'number' ? valor.toLocaleString('es-ES') : valor}
-                              </div>
-                            </div>
-                          ))}
-                      </div>
+                      <table className="min-w-full divide-y divide-gray-200 border">
+                        <thead>
+                          <tr className="bg-gray-100">
+                            {Object.entries(calculationResult.consumos_historicos)
+                              .sort(([mesA], [mesB]) => {
+                                const mesesOrden = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 
+                                               'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+                                const mesANombre = mesA.replace('CONS_', '').substring(0, 3);
+                                const mesBNombre = mesB.replace('CONS_', '').substring(0, 3);
+                                
+                                const anioA = mesA.includes('-') ? parseInt(mesA.split('-')[1]) : 0;
+                                const anioB = mesB.includes('-') ? parseInt(mesB.split('-')[1]) : 0;
+                                
+                                if (anioA !== anioB) return anioA - anioB;
+                                return mesesOrden.indexOf(mesANombre) - mesesOrden.indexOf(mesBNombre);
+                              })
+                              .map(([mes]) => (
+                                <th key={`th-${mes}`} className="px-4 py-2 text-xs font-medium text-gray-600 text-center border-r last:border-r-0">
+                                  {mes.replace('CONS_', '').replace(/_/g, ' ')}
+                                </th>
+                              ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr className="bg-white">
+                            {Object.entries(calculationResult.consumos_historicos)
+                              .sort(([mesA], [mesB]) => {
+                                const mesesOrden = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 
+                                               'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+                                const mesANombre = mesA.replace('CONS_', '').substring(0, 3);
+                                const mesBNombre = mesB.replace('CONS_', '').substring(0, 3);
+                                
+                                const anioA = mesA.includes('-') ? parseInt(mesA.split('-')[1]) : 0;
+                                const anioB = mesB.includes('-') ? parseInt(mesB.split('-')[1]) : 0;
+                                
+                                if (anioA !== anioB) return anioA - anioB;
+                                return mesesOrden.indexOf(mesANombre) - mesesOrden.indexOf(mesBNombre);
+                              })
+                              .map(([mes, valor]) => (
+                                <td key={`td-${mes}`} className="px-4 py-2 text-center border-r last:border-r-0">
+                                  <span className="font-medium text-blue-600">
+                                    {typeof valor === 'number' ? valor.toLocaleString('es-ES') : valor}
+                                  </span>
+                                </td>
+                              ))}
+                          </tr>
+                        </tbody>
+                      </table>
                     </div>
                   )}
                   
@@ -695,8 +724,11 @@ function InventoryCalculator() {
                         </svg>
                         Stock Actual
                       </div>
-                      <div className="text-3xl font-bold text-blue-800">
-                        {Math.round(calculationResult.stock_actual)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-blue-800 mr-2">
+                          {Math.round(calculationResult.stock_actual)}
+                        </div>
+                        <span className="text-sm text-blue-600">unidades</span>
                       </div>
                     </div>
                     
@@ -707,8 +739,11 @@ function InventoryCalculator() {
                         </svg>
                         Consumo Promedio
                       </div>
-                      <div className="text-3xl font-bold text-green-800">
-                        {Math.round(calculationResult.consumo_promedio)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-green-800 mr-2">
+                          {Math.round(calculationResult.consumo_promedio)}
+                        </div>
+                        <span className="text-sm text-green-600">unidades/mes</span>
                       </div>
                     </div>
                     
@@ -719,8 +754,11 @@ function InventoryCalculator() {
                         </svg>
                         Stock de Seguridad
                       </div>
-                      <div className="text-3xl font-bold text-yellow-800">
-                        {Math.round(calculationResult.stock_seguridad)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-yellow-800 mr-2">
+                          {Math.round(calculationResult.stock_seguridad)}
+                        </div>
+                        <span className="text-sm text-yellow-600">unidades</span>
                       </div>
                     </div>
                     
@@ -731,8 +769,11 @@ function InventoryCalculator() {
                         </svg>
                         Punto de Reorden
                       </div>
-                      <div className="text-3xl font-bold text-red-800">
-                        {Math.round(calculationResult.punto_reorden)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-red-800 mr-2">
+                          {Math.round(calculationResult.punto_reorden)}
+                        </div>
+                        <span className="text-sm text-red-600">unidades</span>
                       </div>
                     </div>
                     
@@ -743,8 +784,11 @@ function InventoryCalculator() {
                         </svg>
                         Stock Mínimo
                       </div>
-                      <div className="text-3xl font-bold text-purple-800">
-                        {Math.round(calculationResult.stock_minimo)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-purple-800 mr-2">
+                          {Math.round(calculationResult.stock_minimo)}
+                        </div>
+                        <span className="text-sm text-purple-600">unidades</span>
                       </div>
                     </div>
                     
@@ -755,22 +799,62 @@ function InventoryCalculator() {
                         </svg>
                         Consumo Diario
                       </div>
-                      <div className="text-3xl font-bold text-pink-800">
-                        {Math.round(calculationResult.consumo_diario)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-pink-800 mr-2">
+                          {Math.round(calculationResult.consumo_diario)}
+                        </div>
+                        <span className="text-sm text-pink-600">unidades/día</span>
                       </div>
                     </div>
+                    
+                    {calculationResult.cajas_a_pedir !== undefined && (
+                      <div className="bg-gradient-to-br from-orange-50 to-orange-100/70 p-4 rounded-xl border border-orange-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+                        <div className="text-sm text-orange-700 font-medium flex items-center mb-2">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4" />
+                          </svg>
+                          Cajas a Pedir
+                        </div>
+                        <div className="flex items-baseline">
+                          <div className="text-3xl font-bold text-orange-800 mr-2">
+                            {Math.round(calculationResult.cajas_a_pedir)}
+                          </div>
+                          <span className="text-sm text-orange-600">cajas</span>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/70 p-4 rounded-xl border border-indigo-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                       <div className="text-sm text-indigo-700 font-medium flex items-center mb-2">
                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0h-1v1h1m-7 0h7M5 21h7a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
-                        Cantidad a Pedir
+                        Unidades a Pedir
                       </div>
-                      <div className="text-3xl font-bold text-indigo-800">
-                        {Math.round(calculationResult.cantidad_pedir)}
+                      <div className="flex items-baseline">
+                        <div className="text-3xl font-bold text-indigo-800 mr-2">
+                          {Math.round(calculationResult.unidades_a_pedir)}
+                        </div>
+                        <span className="text-sm text-indigo-600">unidades</span>
                       </div>
                     </div>
+                    
+                    {calculationResult.unidades_transito !== undefined && (
+                      <div className="bg-gradient-to-br from-teal-50 to-teal-100/70 p-4 rounded-xl border border-teal-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
+                        <div className="text-sm text-teal-700 font-medium flex items-center mb-2">
+                          <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />
+                          </svg>
+                          Unidades en Tránsito
+                        </div>
+                        <div className="flex items-baseline">
+                          <div className="text-3xl font-bold text-teal-800 mr-2">
+                            {Math.round(calculationResult.unidades_transito)}
+                          </div>
+                          <span className="text-sm text-teal-600">unidades</span>
+                        </div>
+                      </div>
+                    )}
                     
                     <div className="bg-gradient-to-br from-teal-50 to-teal-100/70 p-4 rounded-xl border border-teal-200 hover:shadow-md transition-all duration-300 transform hover:-translate-y-1">
                       <div className="text-sm text-teal-700 font-medium flex items-center mb-2">
@@ -852,6 +936,54 @@ function InventoryCalculator() {
             </div>
           </div>
         </>
+      )}
+
+      {showTransitModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl p-6 max-w-md w-full shadow-xl animate-fadeIn">
+            <h3 className="text-lg font-semibold mb-4 text-gray-800">¿Existen unidades en tránsito para este producto?</h3>
+            
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Unidades en tránsito (opcional):
+              </label>
+              <input
+                type="number"
+                min="0"
+                value={transitQuantity}
+                onChange={(e) => setTransitQuantity(Math.max(0, parseInt(e.target.value) || 0))}
+                className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-400 focus:border-blue-400 transition-all"
+                placeholder="Ej: 100"
+              />
+              <p className="mt-1 text-sm text-gray-500">
+                Deje en 0 si no hay unidades en tránsito para este producto.
+              </p>
+            </div>
+            
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => {
+                  setShowTransitModal(false);
+                  setTransitQuantity(0);
+                  setSelectedProductData(null);
+                }}
+                className="px-4 py-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors border border-gray-300"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={() => {
+                  setShowTransitModal(false);
+                  setSelectedProduct(selectedProductData);
+                  calculateInventory(selectedProductData, transitQuantity);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white rounded-lg hover:from-blue-700 hover:to-blue-600 transition-all shadow-sm hover:shadow transform hover:-translate-y-0.5"
+              >
+                Continuar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

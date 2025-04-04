@@ -260,14 +260,19 @@ export const getAllPredictions = async () => {
 /**
  * Obtiene la predicción para un producto específico
  * @param {string} code - Código del producto
+ * @param {number} unidadesTransito - Unidades en tránsito (opcional)
  * @returns {Promise<Object>} Datos de predicción del producto
  */
-export const getPredictionByCode = async (code) => {
+export const getPredictionByCode = async (code, unidadesTransito = 0) => {
   try {
-    console.log(`Solicitando datos para el código: ${code}`);
+    console.log(`Solicitando datos para el código: ${code} con ${unidadesTransito} unidades en tránsito`);
     
     // Usar axios directamente para evitar problemas con instancias personalizadas
-    const response = await axios.get(`${PREDICTIONS_API.baseURL}/predictions/${code}`);
+    const response = await axios.get(`${PREDICTIONS_API.baseURL}/predictions/${code}`, {
+      params: {
+        unidades_transito: unidadesTransito // Añadimos el parámetro aunque el backend lo ignore por ahora
+      }
+    });
     
     // Registrar la respuesta completa para depuración
     console.log('Respuesta completa del backend:', response);
