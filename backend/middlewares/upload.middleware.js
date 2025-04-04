@@ -76,4 +76,4 @@ export const configureUploadMiddleware = async () => {
 };
 
 // Export como función configurable
-export default await configureUploadMiddleware();
+export const uploadMiddleware = await configureUploadMiddleware();

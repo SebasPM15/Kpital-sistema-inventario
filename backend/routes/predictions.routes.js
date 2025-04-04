@@ -4,7 +4,7 @@ import {
     getPredictionByCode,
     refreshPredictions // Asegúrate de importar esto también
 } from '../controllers/predictions.controller.js';
-import uploadMiddleware from '../middlewares/upload.middleware.js';
+import { uploadMiddleware } from '../middlewares/upload.middleware.js';
 
 
 const router = Router();

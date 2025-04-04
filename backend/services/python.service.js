@@ -6,23 +6,28 @@ import { logger } from '../utils/logger.js';
 
 class PythonService {
     constructor() {
-        this.scriptPath = path.join(PATHS.AI_MODEL_DIR, '../../ai_model/src/predict.py');
+        // Se usa la ruta definida en las constantes, similar a AIService
+        this.scriptPath = path.join(PATHS.AI_MODEL_DIR, 'src/predict.py');
+        this.dataDir = path.dirname(PATHS.PREDICTIONS_FILE);
+        this.predictionsFile = PATHS.PREDICTIONS_FILE;
         this.timeout = 300000; // 5 minutos
     }
 
     async processExcel(file) {
         try {
-            // Ejecutar script Python
+            // 1. Ejecutar el script Python pasando el archivo de entrada y directorio de salida
             await this.runScript(file.path);
-            
-            // Validar generación de archivo
+
+            // 2. Validar que se generó correctamente el archivo de predicciones
             await this.validateOutput();
-            
-            return this.getLatestPredictions();
+
+            // 3. Retornar las predicciones más recientes
+            return await this.getLatestPredictions();
         } catch (error) {
             logger.error(`Python Service Error: ${error.message}`);
             throw error;
         } finally {
+            // 4. Limpiar el archivo temporal, tanto en éxito como en error
             await this.cleanTempFiles(file.path);
         }
     }
@@ -41,7 +46,7 @@ class PythonService {
             }, this.timeout);
 
             let output = '';
-            
+
             pythonProcess.stdout.on('data', (data) => {
                 output += data.toString();
                 logger.info(`Python Output: ${data}`);
@@ -53,20 +58,20 @@ class PythonService {
 
             pythonProcess.on('close', (code) => {
                 clearTimeout(timeoutId);
-                if (code === 0) {
-                    resolve(output);
-                } else {
-                    reject(new Error(`Script falló con código ${code}`));
-                }
+                code === 0
+                    ? resolve(output)
+                    : reject(new Error(`Script falló con código ${code}`));
             });
         });
     }
 
     async validateOutput() {
         try {
-            await fs.access(PATHS.PREDICTIONS_FILE, fs.constants.F_OK);
-            const stats = await fs.stat(PATHS.PREDICTIONS_FILE);
-            if (stats.size === 0) throw new Error('Archivo de predicciones vacío');
+            await fs.access(this.predictionsFile, fs.constants.F_OK);
+            const stats = await fs.stat(this.predictionsFile);
+            if (stats.size === 0) {
+                throw new Error('Archivo de predicciones vacío');
+            }
         } catch (error) {
             throw new Error(`Error validando output: ${error.message}`);
         }
@@ -74,7 +79,7 @@ class PythonService {
 
     async getLatestPredictions() {
         try {
-            const data = await fs.readFile(PATHS.PREDICTIONS_FILE, 'utf-8');
+            const data = await fs.readFile(this.predictionsFile, 'utf-8');
             return JSON.parse(data);
         } catch (error) {
             throw new Error(`Error leyendo predicciones: ${error.message}`);
