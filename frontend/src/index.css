@@ -1,0 +1,178 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Variables globales */
+:root {
+  --color-primary: #3b82f6;
+  --color-primary-hover: #2563eb;
+  --color-text: #333333;
+  --color-text-light: #6b7280;
+  --color-background: #f9fafb;
+  --color-border: #e5e7eb;
+}
+
+@layer base {
+  /* Reset global */
+  body {
+    @apply bg-gray-100 m-0 p-0 min-h-screen font-sans antialiased;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    color: var(--color-text);
+    background-color: #f3f4f6;
+  }
+
+  /* Asegurar que todos los textos tengan el color correcto */
+  h1, h2, h3, h4, h5, h6, p, span, label {
+    color: var(--color-text);
+  }
+
+  /* Inputs */
+  input, select, textarea {
+    color: var(--color-text) !important;
+    background-color: white !important;
+  }
+
+  input::placeholder {
+    color: #9ca3af;
+  }
+}
+
+@layer components {
+  /* Layout y contenedores */
+  .app-container {
+    @apply max-w-6xl mx-auto px-4 py-6;
+  }
+
+  .inventory-form-container {
+    @apply bg-white shadow-md rounded-xl p-6 space-y-6 border border-gray-200;
+  }
+
+  /* Formularios */
+  .form-group {
+    @apply mb-5;
+  }
+
+  .form-group label {
+    @apply block text-sm font-medium mb-2;
+    color: var(--color-text);
+  }
+
+  .historico-inputs {
+    @apply grid grid-cols-5 gap-2;
+  }
+
+  /* Botones */
+  button {
+    @apply px-4 py-3 text-white rounded-lg shadow-md 
+           transition-all duration-300 ease-in-out font-medium;
+    background: linear-gradient(to right, var(--color-primary), #4f46e5);
+  }
+
+  button:hover:not(:disabled) {
+    @apply shadow-lg -translate-y-0.5;
+    background: linear-gradient(to right, var(--color-primary-hover), #4338ca);
+  }
+
+  button:disabled {
+    @apply bg-gray-400 cursor-not-allowed shadow-none transform-none;
+  }
+
+  /* Resultados */
+  .resultado-container {
+    @apply mt-8 bg-white shadow-md rounded-xl p-6 border border-gray-200;
+  }
+
+  .resultado-grid {
+    @apply grid grid-cols-2 md:grid-cols-3 gap-4;
+  }
+
+  .resultado-item {
+    @apply bg-gray-50 p-4 rounded-lg border border-gray-200 
+           flex flex-col space-y-1 text-center transition-all duration-200;
+  }
+
+  .resultado-item:hover {
+    @apply bg-blue-50 border-blue-200 shadow-md;
+  }
+
+  .resultado-item span {
+    @apply text-xs uppercase tracking-wider;
+    color: var(--color-text-light);
+  }
+
+  .resultado-item strong {
+    @apply text-xl font-bold;
+    color: var(--color-text);
+  }
+
+  /* Alertas */
+  .alerta-box {
+    @apply mt-6 p-5 rounded-lg shadow-sm border-l-4;
+  }
+
+  .nivel-alto {
+    @apply bg-red-50 border-l-red-500;
+    color: #991b1b;
+  }
+
+  .nivel-medio {
+    @apply bg-yellow-50 border-l-yellow-500;
+    color: #92400e;
+  }
+
+  .nivel-bajo {
+    @apply bg-green-50 border-l-green-500;
+    color: #166534;
+  }
+
+  /* Estados */
+  .stock-negativo {
+    @apply text-red-600 font-bold;
+  }
+
+  .stock-warning {
+    @apply bg-red-100 rounded px-2 py-1 text-xs mt-2 text-center 
+           border border-red-200 shadow-sm;
+    color: #991b1b;
+  }
+
+  .loading-indicator {
+    @apply text-center py-8 animate-pulse;
+    color: var(--color-text-light);
+  }
+
+  .error-message {
+    @apply bg-red-50 border-l-4 border-l-red-500 px-4 py-3 
+           rounded-lg text-center mb-4 shadow-sm;
+    color: #991b1b;
+  }
+
+  /* Gráficos */
+  .chart-container {
+    @apply bg-white shadow-md rounded-xl p-6 mt-6 border border-gray-200;
+  }
+
+  .dashboard-container {
+    @apply bg-white shadow-md rounded-xl p-6 border border-gray-200;
+  }
+
+  /* Navegación por pestañas */
+  .tab-navigation {
+    @apply flex border-b border-gray-200 bg-white rounded-t-xl;
+  }
+
+  .tab-button {
+    @apply flex-1 py-4 px-4 flex items-center justify-center gap-2
+           transition-colors duration-300 font-medium;
+  }
+
+  .tab-button-active {
+    @apply text-blue-600 border-b-2 border-blue-600 bg-blue-50;
+  }
+
+  .tab-button-inactive {
+    @apply text-gray-600 hover:bg-gray-50 hover:text-gray-900;
+  }
+}

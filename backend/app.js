@@ -17,9 +17,9 @@ const app = express();
 // 1. Configuración de Seguridad
 app.use(helmet());
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || '*',
-    methods: ['GET', 'POST'],
-    allowedHeaders: ['Content-Type', 'Authorization']
+    origin: '*', // Aceptar peticiones de cualquier origen
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Permitir todos los métodos HTTP comunes
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'] // Ampliar encabezados permitidos
 }));
 
 // 2. Limitador de tasa (100 requests por 15 minutos)
@@ -51,17 +51,20 @@ app.use('/uploads', express.static(PATHS.UPLOADS_DIR, {
 // 5. Rutas principales
 app.use('/api/predictions', limiter, predictionsRouter);
 
-// 6. Ruta de salud (mejorada)
-app.get('/health', (req, res) => {
+// 6. Ruta de salud (mejorada y disponible en ambas rutas)
+const healthResponse = (req, res) => {
     res.status(200).json({
-        status: 'OK',
+        status: "OK",
         timestamp: new Date().toISOString(),
-        service: 'Inventory Prediction API',
+        service: "Inventory Prediction API",
         version: process.env.npm_package_version,
         environment: process.env.NODE_ENV || 'development',
-        port: PORT // <-- Nuevo: muestra el puerto en uso
+        port: PORT
     });
-});
+};
+
+app.get('/health', healthResponse);
+app.get('/api/health', healthResponse); // Agregando el endpoint en la ruta documentada
 
 // 7. Manejo de rutas no encontradas
 app.use((req, res, next) => {

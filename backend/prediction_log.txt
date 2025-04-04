@@ -16,3 +16,89 @@
 2025-04-03 20:49:46,799 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
 2025-04-03 20:49:46,823 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
 2025-04-03 20:49:46,824 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:03:28,734 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:03:28,734 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743739395129-915669733.xlsx
+2025-04-03 23:03:28,740 - ERROR - Error en carga de datos: Missing optional dependency 'openpyxl'.  Use pip or conda to install openpyxl.
+2025-04-03 23:03:52,566 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:03:52,567 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743739429273-477549339.xlsx
+2025-04-03 23:03:52,571 - ERROR - Error en carga de datos: Missing optional dependency 'openpyxl'.  Use pip or conda to install openpyxl.
+2025-04-03 23:06:04,133 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:06:04,133 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743739561005-417869008.xlsx
+2025-04-03 23:06:05,083 - INFO - Archivo leído correctamente
+2025-04-03 23:06:05,087 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:06:06,873 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:06:06,978 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:06:07,016 - INFO - Calculando predicciones...
+2025-04-03 23:06:07,323 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:06:07,400 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:06:07,401 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:06:40,438 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:06:40,438 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743739597014-294212141.xlsx
+2025-04-03 23:06:41,128 - INFO - Archivo leído correctamente
+2025-04-03 23:06:41,131 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:06:42,108 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:06:42,189 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:06:42,224 - INFO - Calculando predicciones...
+2025-04-03 23:06:42,512 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:06:42,589 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:06:42,590 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:09:08,637 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:09:08,637 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743739745212-301132066.xlsx
+2025-04-03 23:09:09,588 - INFO - Archivo leído correctamente
+2025-04-03 23:09:09,591 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:09:10,869 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:09:11,002 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:09:11,068 - INFO - Calculando predicciones...
+2025-04-03 23:09:11,441 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:09:11,528 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:09:11,529 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:15:19,050 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:15:19,050 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743740115764-131050484.xlsx
+2025-04-03 23:15:19,806 - INFO - Archivo leído correctamente
+2025-04-03 23:15:19,810 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:15:20,910 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:15:21,034 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:15:21,082 - INFO - Calculando predicciones...
+2025-04-03 23:15:21,478 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:15:21,556 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:15:21,557 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:28:44,065 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:28:44,066 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743740920574-638378646.xlsx
+2025-04-03 23:28:44,800 - INFO - Archivo leído correctamente
+2025-04-03 23:28:44,802 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:28:45,858 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:28:45,952 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:28:45,987 - INFO - Calculando predicciones...
+2025-04-03 23:28:46,275 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:28:46,363 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:28:46,364 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:37:09,452 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:37:09,453 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743741425870-72835424.xlsx
+2025-04-03 23:37:10,167 - INFO - Archivo leído correctamente
+2025-04-03 23:37:10,170 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:37:11,399 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:37:11,492 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:37:11,525 - INFO - Calculando predicciones...
+2025-04-03 23:37:11,815 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:37:11,880 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:37:11,880 - INFO - === PROCESO COMPLETADO ===
+2025-04-03 23:42:32,736 - INFO - === INICIO DEL PROCESO ===
+2025-04-03 23:42:32,736 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743741749393-903176556.xlsx
+2025-04-03 23:42:33,469 - INFO - Archivo leído correctamente
+2025-04-03 23:42:33,472 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-03 23:42:34,471 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-03 23:42:34,565 - INFO - Modelo Prophet cargado correctamente
+2025-04-03 23:42:34,603 - INFO - Calculando predicciones...
+2025-04-03 23:42:34,904 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-03 23:42:34,971 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-03 23:42:34,972 - INFO - === PROCESO COMPLETADO ===
+2025-04-04 00:38:10,063 - INFO - === INICIO DEL PROCESO ===
+2025-04-04 00:38:10,064 - INFO - Cargando archivo: D:\Programassss\Kpital\Kpital-sistema-inventario\backend\public\uploads\prueba_pasantias_epn-1743745086600-258523192.xlsx
+2025-04-04 00:38:10,815 - INFO - Archivo leído correctamente
+2025-04-04 00:38:10,818 - INFO - Cargando modelo Prophet: D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-04-04 00:38:11,934 - ERROR - Importing plotly failed. Interactive plots will not work.
+2025-04-04 00:38:12,029 - INFO - Modelo Prophet cargado correctamente
+2025-04-04 00:38:12,064 - INFO - Calculando predicciones...
+2025-04-04 00:38:12,356 - INFO - Resultados guardados exitosamente en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
+2025-04-04 00:38:12,420 - INFO - Resultados guardados en formato minificado en D:\Programassss\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
+2025-04-04 00:38:12,421 - INFO - === PROCESO COMPLETADO ===
