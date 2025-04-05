@@ -330,6 +330,28 @@ export const getPredictionByCode = async (code, unidadesTransito = 0) => {
 };
 
 /**
+ * Aplica unidades en tránsito a un producto específico
+ * @param {string} code - Código del producto
+ * @param {number} units - Unidades en tránsito a aplicar
+ * @returns {Promise<Object>} Datos actualizados del producto
+ */
+export const applyTransitUnits = async (code, units) => {
+  try {
+    const response = await predictionsApi.post(`/predictions/${code}/transit`, {
+      units: units
+    });
+    
+    // Invalidar caché para este producto si es necesario
+    invalidateCache(`/predictions/${code}`);
+    
+    return response.data;
+  } catch (error) {
+    console.error(`Error applying transit units to product ${code}:`, error);
+    throw error;
+  }
+};
+
+/**
  * Sube un archivo Excel para actualizar predicciones
  * @param {File} file - Archivo Excel a subir
  * @returns {Promise<Object>} Respuesta del servidor

@@ -3,7 +3,7 @@ import ExcelUploader from './ExcelUploader';
 import ProductSearch from './ProductSearch';
 import LoadingState from './LoadingState';
 import ErrorState from './ErrorState';
-import { getAllPredictions, getPredictionByCode } from '../services/api';
+import { getAllPredictions, getPredictionByCode, applyTransitUnits } from '../services/api';
 
 const StockProjection = lazy(() => import('./StockProjection'));
 
@@ -56,13 +56,20 @@ function InventoryCalculator() {
     setLoading(true);
     setError(null);
     setShowProductTable(false);
-
+  
     try {
       const code = productData[columnMappings.codigo];
       console.log('Solicitando predicción para código:', code, 'con', unidadesTransito, 'unidades en tránsito');
-
+  
       let backendProduct;
       try {
+        // Primero aplicamos las unidades en tránsito si son mayores que 0
+        if (unidadesTransito > 0) {
+          await applyTransitUnits(code, unidadesTransito);
+          console.log('Unidades en tránsito aplicadas correctamente');
+        }
+        
+        // Luego obtenemos los datos actualizados
         backendProduct = await getPredictionByCode(code, unidadesTransito);
         console.log('Datos recibidos del backend:', backendProduct);
       } catch (fetchError) {
@@ -71,11 +78,11 @@ function InventoryCalculator() {
         setLoading(false);
         return;
       }
-
+  
       if (!backendProduct) {
         throw new Error('No se encontró información para este producto en el backend');
       }
-
+  
       const getCampo = (posiblesNombres, valorPorDefecto) => {
         for (const nombre of posiblesNombres) {
           if (backendProduct[nombre] !== undefined) {
@@ -90,17 +97,17 @@ function InventoryCalculator() {
         console.warn(`Ninguno de estos campos encontrados: ${posiblesNombres.join(', ')}. Usando valor por defecto: ${valorPorDefecto}`);
         return valorPorDefecto;
       };
-
+  
       const hasPredictionData = backendProduct.PREDICCION && 
-                               Array.isArray(backendProduct.PREDICCION) && 
-                               backendProduct.PREDICCION.length > 0;
+                              Array.isArray(backendProduct.PREDICCION) && 
+                              backendProduct.PREDICCION.length > 0;
       
       const firstPrediction = hasPredictionData ? backendProduct.PREDICCION[0] : null;
       
       const adaptedData = {
         codigo: getCampo(['CODIGO', 'codigo', 'Code'], productData[columnMappings.codigo]),
         nombre: getCampo(['DESCRIPCION', 'descripcion', 'Description'], productData[columnMappings.nombre]),
-        stock_actual: getCampo(['STOCK_ACTUAL', 'STOCK  TOTAL', 'STOCK TOTAL', 'stock_actual', 'StockActual'], 
+        stock_actual: getCampo(['STOCK_TOTAL', 'STOCK  TOTAL', 'STOCK TOTAL', 'stock_actual', 'StockActual'], 
                             productData[columnMappings.stock_actual]),
         unidades_por_caja: getCampo(['UNID_POR_CAJA', 'UNID/CAJA', 'unidades_por_caja', 'UnidadesPorCaja'], 
                                 productData[columnMappings.unidades_por_caja]),
@@ -110,7 +117,7 @@ function InventoryCalculator() {
         stock_minimo: getCampo(['STOCK_MINIMO', 'SS', 'stock_minimo', 'StockMinimo'], 0),
         cajas_a_pedir: getCampo(['CAJAS_A_PEDIR', 'CAJAS_NECESARIAS', 'cajas_a_pedir', 'CajasAPedir'], undefined),
         unidades_a_pedir: getCampo(['UNIDADES_A_PEDIR', 'CANT.PEDIR', 'unidades_a_pedir', 'cantidad_pedir', 'UnidadesAPedir'], 0),
-        unidades_transito: unidadesTransito > 0 ? unidadesTransito : getCampo(['UNIDADES_TRANSITO', 'UNIDADES_EN_TRANSITO', 'unidades_transito', 'UnidadesTransito'], undefined),
+        unidades_transito: unidadesTransito > 0 ? unidadesTransito : getCampo(['UNIDADES_TRANSITO_DISPONIBLES', 'UNIDADES_TRANSITO_DISPONIBLES', 'unidades_transito', 'UnidadesTransito'], undefined),
         stock_proyectado: (() => {
           const directValue = getCampo(['STOCK_PROYECTADO', 'stock_proyectado', 'StockProyectado'], null);
           if (directValue !== null) return directValue;
@@ -170,12 +177,12 @@ function InventoryCalculator() {
         })(),
         consumos_historicos: backendProduct.CONSUMOS_HISTORICOS || {}
       };
-
+  
       if (adaptedData.unidades_transito === undefined) delete adaptedData.unidades_transito;
       if (adaptedData.cajas_a_pedir === undefined) delete adaptedData.cajas_a_pedir;
-
+  
       const prediccion = backendProduct.PREDICCION;
-
+  
       if (prediccion) {
         try {
           adaptedData.prediccion = {
@@ -197,7 +204,7 @@ function InventoryCalculator() {
           semanal: []
         };
       }
-
+  
       if (adaptedData.stock_proyectado < 0) {
         adaptedData.alerta = {
           nivel: 'Crítico',
@@ -214,11 +221,11 @@ function InventoryCalculator() {
           accion: 'No se requiere acción inmediata. El stock es adecuado.'
         };
       }
-
+  
       setCalculationResult(adaptedData);
     } catch (err) {
       console.error('Error calculando inventario:', err);
-
+  
       if (err.response) {
         setError(`Error ${err.response.status}: ${err.response.data?.error || err.response.statusText}`);
       } else if (err.request) {
