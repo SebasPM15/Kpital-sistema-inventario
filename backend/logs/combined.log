@@ -560,3 +560,23 @@
 {"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-04T19:57:00.553Z"}
 {"level":"info","message":"127.0.0.1 - - [04/Apr/2025:19:57:15 +0000] \"GET /api/predictions/V7201-D HTTP/1.1\" 200 2910 \"-\" \"PostmanRuntime/7.43.3\"","timestamp":"2025-04-04T19:57:15.269Z"}
 {"level":"info","message":"127.0.0.1 - - [04/Apr/2025:19:57:48 +0000] \"POST /api/predictions/V7201-D/transit HTTP/1.1\" 200 2988 \"-\" \"PostmanRuntime/7.43.3\"","timestamp":"2025-04-04T19:57:48.499Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3000","timestamp":"2025-04-07T20:38:59.749Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3000/metrics","timestamp":"2025-04-07T20:38:59.751Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3000/health","timestamp":"2025-04-07T20:38:59.751Z"}
+{"level":"info","message":"🚀 Servidor corriendo en http://0.0.0.0:3500","timestamp":"2025-04-07T20:39:52.749Z"}
+{"level":"info","message":"📊 Métricas disponibles en http://0.0.0.0:3500/metrics","timestamp":"2025-04-07T20:39:52.751Z"}
+{"level":"info","message":"🩺 Health check en http://0.0.0.0:3500/health","timestamp":"2025-04-07T20:39:52.751Z"}
+{"level":"info","message":"127.0.0.1 - - [07/Apr/2025:20:40:09 +0000] \"GET /api/predictions HTTP/1.1\" 200 637903 \"http://localhost:3000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0\"","timestamp":"2025-04-07T20:40:09.568Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:18,185 - INFO - === INICIO DEL PROCESO ===\r\n","timestamp":"2025-04-07T20:40:18.185Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:18,186 - INFO - Cargando archivo: C:\\Users\\pilco\\Documents\\GitHub\\Kpital\\Kpital-sistema-inventario\\backend\\public\\uploads\\prueba_pasantias_epn-1744058416860-999230886.xlsx\r\n","timestamp":"2025-04-07T20:40:18.186Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:18,502 - INFO - Archivo le�do correctamente\r\n","timestamp":"2025-04-07T20:40:18.501Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:18,512 - INFO - Cargando modelo Prophet: C:\\Users\\pilco\\Documents\\GitHub\\Kpital\\Kpital-sistema-inventario\\ai_model\\models\\prophet_model.pkl.gz\r\n","timestamp":"2025-04-07T20:40:18.511Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:19,110 - INFO - Modelo Prophet cargado correctamente\r\n","timestamp":"2025-04-07T20:40:19.109Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:19,122 - INFO - Calculando predicciones...\r\n","timestamp":"2025-04-07T20:40:19.121Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:19,254 - INFO - Resultados guardados exitosamente en C:\\Users\\pilco\\Documents\\GitHub\\Kpital\\Kpital-sistema-inventario\\ai_model\\src\\../data\\predicciones_completas.json\r\n","timestamp":"2025-04-07T20:40:19.253Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:19,283 - INFO - Resultados guardados en formato minificado en C:\\Users\\pilco\\Documents\\GitHub\\Kpital\\Kpital-sistema-inventario\\ai_model\\src\\../data\\predicciones_completas.min.json\r\n","timestamp":"2025-04-07T20:40:19.282Z"}
+{"level":"info","message":"Python Output: 2025-04-07 15:40:19,284 - INFO - === PROCESO COMPLETADO ===\r\n","timestamp":"2025-04-07T20:40:19.283Z"}
+{"level":"info","message":"Archivo temporal eliminado: C:\\Users\\pilco\\Documents\\GitHub\\Kpital\\Kpital-sistema-inventario\\backend\\public\\uploads\\prueba_pasantias_epn-1744058416860-999230886.xlsx","timestamp":"2025-04-07T20:40:19.588Z"}
+{"level":"info","message":"127.0.0.1 - - [07/Apr/2025:20:40:19 +0000] \"POST /api/predictions/refresh HTTP/1.1\" 200 187 \"http://localhost:3000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0\"","timestamp":"2025-04-07T20:40:19.590Z"}
+{"level":"info","message":"127.0.0.1 - - [07/Apr/2025:20:40:19 +0000] \"GET /api/predictions HTTP/1.1\" 200 637889 \"http://localhost:3000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0\"","timestamp":"2025-04-07T20:40:19.612Z"}
+{"level":"info","message":"127.0.0.1 - - [07/Apr/2025:20:40:21 +0000] \"GET /api/predictions/V7201-D HTTP/1.1\" 200 2910 \"http://localhost:3000/\" \"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/132.0.0.0 Safari/537.36 OPR/117.0.0.0\"","timestamp":"2025-04-07T20:40:21.988Z"}

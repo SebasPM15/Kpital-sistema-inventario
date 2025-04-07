@@ -9,7 +9,7 @@ import { handleHttpError } from './utils/errorHandler.js';
 import { logger } from './utils/logger.js';
 
 // Configuración del puerto
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3500;
 const HOST = process.env.HOST || '0.0.0.0'; // Para compatibilidad con Docker
 
 const app = express();
