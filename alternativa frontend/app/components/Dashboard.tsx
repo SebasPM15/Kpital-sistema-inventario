@@ -14,11 +14,12 @@ import {
 } from 'react-icons/fa';
 import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Area } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion } from 'framer-motion';
-
+import { Chart, LinearScale, CategoryScale, LineController, PointElement, LineElement, Title } from 'chart.js';
+Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
     interface jsPDF {
         lastAutoTable?: {
@@ -181,61 +182,60 @@ const Dashboard = () => {
 
     const handleDownloadPDF = async () => {
         if (!selectedPrediction) return;
-
-        const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
-
-        // Configuración de márgenes y espacios
-        const margin = {
-            left: 15,
-            right: 15,
-            top: 20,
-            bottom: 20
-        };
-        const pageWidth = 210; // Ancho A4 en mm
-        const contentWidth = pageWidth - margin.left - margin.right;
-        let currentY = margin.top;
-
-        // Configuración de fuentes y colores
-        pdf.setFont('helvetica');
-        const primaryColor: [number, number, number] = [45, 207, 245];
-        const darkColor: [number, number, number] = [13, 27, 42];
-
-        // --- ENCABEZADO CON LOGO ---
+    
         try {
+            const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
+    
+            // Configuración de márgenes y espacios
+            const margin = {
+                left: 15,
+                right: 15,
+                top: 20,
+                bottom: 20
+            };
+            const pageWidth = 210;
+            const contentWidth = pageWidth - margin.left - margin.right;
+            let currentY = margin.top;
+    
+            // Configuración de fuentes y colores
+            pdf.setFont('helvetica');
+            const primaryColor: [number, number, number] = [45, 207, 245];
+            const darkColor: [number, number, number] = [13, 27, 42];
+    
+            // --- ENCABEZADO CON LOGO ---
             const logoData = await getBase64ImageFromURL('/kpitalink_logistics_cover.jpeg') as string;
-
+    
             // Dimensiones y posición del logo
             const logoWidth = 50;
-            const logoHeight = 15; // Reducido para mejor ajuste
+            const logoHeight = 15;
             const logoX = margin.left;
             const logoY = margin.top;
-
+    
             pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight);
-
-            // Título principal (alineado a la derecha del logo)
-            pdf.setFontSize(14); // Tamaño reducido para mejor ajuste
+    
+            // Título principal
+            pdf.setFontSize(14);
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
             pdf.text('INFORME DE GESTIÓN DE INVENTARIOS', logoX + logoWidth + 10, logoY + logoHeight / 2 + 2, { align: 'left' });
-
-            // Línea decorativa con color primario
+    
+            // Línea decorativa
             pdf.setDrawColor(primaryColor[0], primaryColor[1], primaryColor[2]);
-            pdf.setLineWidth(0.5); // Grosor reducido
+            pdf.setLineWidth(0.5);
             currentY = logoY + logoHeight + 5;
             pdf.line(margin.left, currentY, pageWidth - margin.right, currentY);
-
+    
             currentY += 10;
-
+    
             // --- INFORMACIÓN DEL PRODUCTO ---
             pdf.setFontSize(10);
             pdf.setTextColor(100, 100, 100);
-
-            // Dividir la descripción si es muy larga
+    
             const descripcion = pdf.splitTextToSize(selectedPrediction.data.DESCRIPCION, contentWidth - 40);
-
+    
             pdf.text(`Código: ${selectedPrediction.data.CODIGO}`, margin.left, currentY);
             pdf.text(`Producto:`, margin.left, currentY + 6);
             pdf.text(descripcion, margin.left + 20, currentY + 6);
-
+    
             pdf.text(`Generado el: ${new Date().toLocaleDateString('es-ES', {
                 day: '2-digit',
                 month: 'long',
@@ -243,39 +243,36 @@ const Dashboard = () => {
                 hour: '2-digit',
                 minute: '2-digit'
             })}`, pageWidth - margin.right, currentY, { align: 'right' });
-
-            currentY += 6 + (descripcion.length * 5); // Ajuste dinámico según longitud de descripción
-
+    
+            currentY += 6 + (descripcion.length * 5);
+    
             // Función para agregar nueva página si es necesario
             const checkPageBreak = (requiredSpace: number) => {
-                if (currentY + requiredSpace > 297 - margin.bottom) { // 297mm es altura A4
+                if (currentY + requiredSpace > 297 - margin.bottom) {
                     pdf.addPage();
                     currentY = margin.top;
-
-                    // Opcional: agregar encabezado en páginas siguientes
                     pdf.setFontSize(10);
                     pdf.setTextColor(100, 100, 100);
                     pdf.text(`Continuación informe: ${selectedPrediction.data.CODIGO}`, margin.left, currentY);
                     currentY += 10;
                 }
             };
-
+    
             // --- RESUMEN EJECUTIVO ---
             checkPageBreak(30);
-            pdf.setFontSize(12); // Tamaño reducido para mejor jerarquía
+            pdf.setFontSize(12);
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
             pdf.text('1. RESUMEN EJECUTIVO', margin.left, currentY);
-
-            // Badge de estado
+    
             const status = getStockStatus(
                 selectedPrediction.data.STOCK_TOTAL,
                 selectedPrediction.data.STOCK_SEGURIDAD,
                 selectedPrediction.data.PUNTO_REORDEN
             );
-
+    
             let statusMessage = '';
             let statusColor: [number, number, number] = primaryColor;
-
+    
             if (status === 'danger') {
                 statusMessage = 'NIVEL CRÍTICO - ACCIÓN REQUERIDA';
                 statusColor = [220, 53, 69];
@@ -286,21 +283,21 @@ const Dashboard = () => {
                 statusMessage = 'NIVEL ÓPTIMO';
                 statusColor = [40, 167, 69];
             }
-
+    
             pdf.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
             pdf.roundedRect(margin.left, currentY + 5, 50, 6, 3, 3, 'F');
             pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(9); // Tamaño reducido
+            pdf.setFontSize(9);
             pdf.text(statusMessage, margin.left + 3, currentY + 9);
-
+    
             pdf.setTextColor(0, 0, 0);
             pdf.setFontSize(10);
             currentY += 20;
-
+    
             // --- DATOS CLAVE EN TABLA ---
             checkPageBreak(100);
             const porcentajeSS = Math.round(selectedPrediction.data.STOCK_SEGURIDAD / selectedPrediction.data.CONSUMO_PROMEDIO * 100);
-
+    
             autoTable(pdf, {
                 startY: currentY,
                 head: [['Indicador', 'Valor']],
@@ -321,14 +318,14 @@ const Dashboard = () => {
                 },
                 bodyStyles: {
                     textColor: 50,
-                    fontSize: 9 // Tamaño reducido
+                    fontSize: 9
                 },
                 alternateRowStyles: {
                     fillColor: [240, 240, 240]
                 },
                 margin: { left: margin.left, right: margin.right },
                 styles: {
-                    cellPadding: 3, // Padding reducido
+                    cellPadding: 3,
                     fontSize: 9,
                     valign: 'middle',
                     lineColor: [200, 200, 200],
@@ -344,23 +341,23 @@ const Dashboard = () => {
                     }
                 }
             });
-
+    
             // --- ANÁLISIS DETALLADO ---
             currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
             checkPageBreak(50);
             pdf.setFontSize(12);
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
             pdf.text('2. ANÁLISIS DETALLADO', margin.left, currentY);
-
-            pdf.setFontSize(9); // Tamaño reducido para mejor ajuste
+    
+            pdf.setFontSize(9);
             pdf.setTextColor(0, 0, 0);
             currentY += 8;
-
+    
             const analysisText = [
                 `El análisis muestra que el producto ${selectedPrediction.data.CODIGO} tiene un consumo promedio de ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)} unidades mensuales, equivalente a ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} unidades por día.`,
                 `El stock de seguridad está calculado en ${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} unidades (${porcentajeSS}% del consumo mensual), proporcionando un colchón para fluctuaciones en la demanda.`
             ];
-
+    
             analysisText.forEach(text => {
                 const splitText = pdf.splitTextToSize(text, contentWidth);
                 splitText.forEach((line: string | string[]) => {
@@ -369,40 +366,40 @@ const Dashboard = () => {
                     currentY += 5;
                 });
             });
-
+    
             // Fórmulas destacadas
             checkPageBreak(20);
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
             pdf.text('Cálculos Clave:', margin.left, currentY);
-
+    
             pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(0, 0, 0);
             currentY += 8;
-
+    
             const formulas = [
                 `• Stock Mínimo = Consumo Mensual + Stock Seguridad`,
                 `  ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)} + ${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} = ${selectedPrediction.data.STOCK_MINIMO.toFixed(0)} unidades`,
                 `• Punto de Reorden = Consumo Diario × 44 días`,
                 `  ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} × 44 = ${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} unidades`
             ];
-
+    
             formulas.forEach(formula => {
                 checkPageBreak(5);
                 pdf.text(formula, margin.left + (formula.startsWith('•') ? 0 : 10), currentY);
                 currentY += 5;
             });
-
+    
             // --- RECOMENDACIONES ---
             checkPageBreak(30);
             pdf.setFontSize(12);
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
             pdf.text('3. RECOMENDACIONES', margin.left, currentY);
-
+    
             pdf.setFontSize(9);
             pdf.setTextColor(0, 0, 0);
             currentY += 8;
-
+    
             const recommendations = [
                 `Ordenar ${selectedPrediction.data.CAJAS_A_PEDIR} cajas (${selectedPrediction.data.UNIDADES_A_PEDIR} unidades) lo antes posible`,
                 `Fecha sugerida de pedido: ${new Date().toLocaleDateString()}`,
@@ -411,7 +408,7 @@ const Dashboard = () => {
                 `Tiempo de cobertura actual: ${selectedPrediction.data.DIAS_COBERTURA} días`,
                 `Frecuencia sugerida de reposición: Cada ${selectedPrediction.data.PROYECCIONES[0]?.frecuencia_reposicion || 30} días`
             ];
-
+    
             recommendations.forEach(rec => {
                 checkPageBreak(5);
                 pdf.setFillColor(primaryColor[0], primaryColor[1], primaryColor[2]);
@@ -419,14 +416,141 @@ const Dashboard = () => {
                 pdf.text(` ${rec}`, margin.left + 7, currentY);
                 currentY += 5;
             });
-
-            // --- PROYECCIÓN MENSUAL ---
-            checkPageBreak(30);
-            currentY += 5;
+    
+            // --- GRÁFICO DE PREDICCIONES ---
+            checkPageBreak(150);
+            currentY += 10;
             pdf.setFontSize(12);
             pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
-            pdf.text('4. PROYECCIÓN MENSUAL', margin.left, currentY);
-
+            pdf.text('4. GRÁFICO DE PREDICCIONES', margin.left, currentY);
+            currentY += 10;
+    
+            // Crear canvas oculto en el DOM
+            const canvas = document.createElement('canvas');
+            canvas.width = 800;
+            canvas.height = 400;
+            canvas.style.display = 'none';
+            document.body.appendChild(canvas);
+    
+            // Esperar a que el canvas esté listo
+            await new Promise(resolve => setTimeout(resolve, 100));
+    
+            // Generar el gráfico
+            const ctx = canvas.getContext('2d');
+            if (ctx) {
+                const proyecciones = selectedPrediction.data.PROYECCIONES;
+                const meses = proyecciones.map(p => p.mes);
+                const stockProyectado = proyecciones.map(p => p.stock_proyectado);
+                const stockSeguridad = proyecciones.map(p => p.stock_seguridad);
+                const puntoReorden = proyecciones.map(p => p.punto_reorden);
+    
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: meses,
+                        datasets: [
+                            {
+                                label: 'Stock Proyectado',
+                                data: stockProyectado,
+                                borderColor: 'rgb(75, 192, 192)',
+                                backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                                tension: 0.1,
+                                fill: true
+                            },
+                            {
+                                label: 'Stock de Seguridad',
+                                data: stockSeguridad,
+                                borderColor: 'rgb(255, 159, 64)',
+                                backgroundColor: 'rgba(255, 159, 64, 0.2)',
+                                borderDash: [5, 5],
+                                tension: 0.1
+                            },
+                            {
+                                label: 'Punto de Reorden',
+                                data: puntoReorden,
+                                borderColor: 'rgb(255, 99, 132)',
+                                backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                                borderDash: [5, 5],
+                                tension: 0.1
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        animation: {
+                            duration: 0 // Desactivar animaciones para mayor fiabilidad
+                        },
+                        plugins: {
+                            title: {
+                                display: true,
+                                text: 'Proyección de Stock Mensual',
+                                font: {
+                                    size: 16
+                                }
+                            },
+                            legend: {
+                                position: 'top',
+                            }
+                        },
+                        scales: {
+                            y: {
+                                type: 'linear',
+                                beginAtZero: false,
+                                title: {
+                                    display: true,
+                                    text: 'Unidades'
+                                }
+                            },
+                            x: {
+                                type: 'category'
+                            }
+                        }
+                    }
+                });
+    
+                // Esperar a que el gráfico se renderice completamente
+                await new Promise(resolve => setTimeout(resolve, 300));
+    
+                try {
+                    // Convertir el canvas a imagen PNG
+                    const chartImage = canvas.toDataURL('image/png', 1.0);
+                    
+                    // Verificar que la imagen se generó correctamente
+                    if (chartImage && chartImage.startsWith('data:image/png')) {
+                        const imgWidth = contentWidth;
+                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
+                        
+                        checkPageBreak(imgHeight + 10);
+                        pdf.addImage(chartImage, 'PNG', margin.left, currentY, imgWidth, imgHeight);
+                        currentY += imgHeight + 10;
+                    } else {
+                        console.warn('La imagen del gráfico no se generó correctamente');
+                        pdf.text('No se pudo generar el gráfico de predicciones', margin.left, currentY);
+                        currentY += 10;
+                    }
+                } catch (error) {
+                    console.error('Error al convertir el gráfico a imagen:', error);
+                    pdf.text('Error al generar el gráfico de predicciones', margin.left, currentY);
+                    currentY += 10;
+                } finally {
+                    // Limpiar recursos
+                    chart.destroy();
+                    document.body.removeChild(canvas);
+                }
+            } else {
+                console.error('No se pudo obtener el contexto 2D del canvas');
+                document.body.removeChild(canvas);
+                pdf.text('Error al generar el gráfico: contexto no disponible', margin.left, currentY);
+                currentY += 10;
+            }
+    
+            // --- PROYECCIÓN MENSUAL (TABLA CENTRADA) ---
+            checkPageBreak(30);
+            pdf.setFontSize(12);
+            pdf.setTextColor(darkColor[0], darkColor[1], darkColor[2]);
+            pdf.text('5. PROYECCIÓN MENSUAL', margin.left, currentY);
+            currentY += 10;
+    
             const proyeccionData = selectedPrediction.data.PROYECCIONES.map(proyeccion => {
                 return [
                     proyeccion.mes,
@@ -438,11 +562,16 @@ const Dashboard = () => {
                     proyeccion.alerta_stock ? 'ALERTA' : 'OK'
                 ];
             });
-
+    
+            // Calcular el ancho total de la tabla para centrarla
+            const tableWidth = 130;
+            const tableMarginLeft = (pageWidth - tableWidth) / 2;
+    
             autoTable(pdf, {
-                startY: currentY + 5,
+                startY: currentY,
                 head: [['Mes', 'Stock', 'Seguridad', 'Reorden', 'Pedir', 'Fecha Rep.', 'Estado']],
                 body: proyeccionData,
+                margin: { left: tableMarginLeft, right: tableMarginLeft },
                 headStyles: {
                     fillColor: darkColor,
                     textColor: 255,
@@ -479,23 +608,24 @@ const Dashboard = () => {
                     }
                 }
             });
-
+    
             // --- PIE DE PÁGINA ---
             pdf.setFontSize(7);
             pdf.setTextColor(100, 100, 100);
             pdf.text('Documento confidencial - Kpitalink Inventory Management System', margin.left, 290);
             pdf.setTextColor(primaryColor[0], primaryColor[1], primaryColor[2]);
             pdf.text('www.kpitalink.com', pageWidth - margin.right, 290, { align: 'right' });
-
+    
             // Guardar PDF
             const fileName = `KPI-Inventory-${selectedPrediction.data.CODIGO}-${new Date().toISOString().slice(0, 10)}.pdf`;
             pdf.save(fileName);
+    
         } catch (error) {
             console.error('Error al generar el PDF:', error);
-            // Mostrar notificación al usuario si es necesario
+            alert('Ocurrió un error al generar el PDF. Por favor intente nuevamente.');
         }
     };
-
+    
     // Función auxiliar para cargar el logo (debes implementarla según tu entorno)
     async function getBase64ImageFromURL(url: string | URL | Request) {
         const response = await fetch(url);
@@ -828,13 +958,13 @@ const Dashboard = () => {
         <div className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm">
             <div className="flex items-center justify-between mb-4">
                 <h4 className="text-lg font-semibold flex items-center gap-2 text-gray-900">
-                    <FaChartLine className="text-gray-900" />
+                    <FaChartLine className="text-blue-600" />
                     Proyección de Stock - {chartView === 'semanal' ? 'Semanal' : 'Mensual'}
                 </h4>
                 <select
                     value={chartView}
                     onChange={(e) => setChartView(e.target.value as 'semanal' | 'mensual')}
-                    className="px-3 py-1 border rounded-lg text-sm bg-white text-gray-900 border-gray-300"
+                    className="px-3 py-1 border rounded-lg text-sm bg-white text-gray-900 border-gray-300 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                     <option value="semanal">Vista Semanal</option>
                     <option value="mensual">Vista Mensual</option>
@@ -846,7 +976,7 @@ const Dashboard = () => {
                         data={chartView === 'semanal' ? weeklyData : monthlyData}
                         margin={{ top: 10, right: 30, left: 20, bottom: 80 }}
                     >
-                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                        <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.5} />
                         <XAxis
                             dataKey={chartView === 'semanal' ? 'semana' : 'periodo'}
                             angle={-45}
@@ -890,39 +1020,67 @@ const Dashboard = () => {
                             }}
                             verticalAlign="top"
                         />
+                        {/* Stock Proyectado - Azul con área sombreada */}
                         <Line
                             type="monotone"
                             dataKey="stock"
-                            stroke="#1d4ed8"
-                            strokeWidth={2}
+                            stroke="#3b82f6"  // Azul más vibrante
+                            strokeWidth={2.5}
                             name="Stock Proyectado"
-                            dot={{ fill: '#1d4ed8', strokeWidth: 1 }}
+                            dot={{ fill: '#3b82f6', strokeWidth: 1, r: 4 }}
+                            activeDot={{ r: 6 }}
                         />
+                        <Area
+                            type="monotone"
+                            dataKey="stock"
+                            fill="#93c5fd"  // Azul claro para el área
+                            fillOpacity={0.4}
+                            stroke="none"
+                        />
+                        
+                        {/* Punto de Reorden - Rojo con línea discontinua */}
                         <Line
                             type="monotone"
                             dataKey="min"
-                            stroke="#dc2626"
+                            stroke="#ef4444"  // Rojo más vibrante
                             strokeWidth={2}
-                            strokeDasharray="5 5"
+                            strokeDasharray="5 3"  // Patrón de guiones más claro
                             name="Punto de Reorden"
+                            dot={{ fill: '#ef4444', strokeWidth: 1, r: 3 }}
                         />
+                        
+                        {/* Stock de Seguridad - Morado con efecto de profundidad */}
                         {chartView === 'mensual' && (
-                            <Line
-                                type="monotone"
-                                dataKey="seguridad"
-                                stroke="#8B008B"
-                                strokeWidth={2}
-                                name="Stock de Seguridad"
-                                dot={{ fill: '#8B008B', strokeWidth: 1 }}
-                            />
+                            <>
+                                <Line
+                                    type="monotone"
+                                    dataKey="seguridad"
+                                    stroke="#f59e0b"  // Cambiado a amarillo/naranja para mejor contraste
+                                    strokeWidth={2.5}
+                                    name="Stock de Seguridad"
+                                    dot={{ fill: '#f59e0b', strokeWidth: 1, r: 5 }}
+                                    strokeDasharray="4 2"  // Patrón diferente
+                                />
+                                <Area
+                                    type="monotone"
+                                    dataKey="seguridad"
+                                    fill="#fcd34d"  // Amarillo claro
+                                    fillOpacity={0.3}
+                                    stroke="none"
+                                />
+                            </>
                         )}
+                        
+                        {/* Consumo Semanal - Verde con estilo diferente */}
                         {chartView === 'semanal' && (
                             <Line
                                 type="monotone"
                                 dataKey="consumo"
-                                stroke="#16a34a"
+                                stroke="#10b981"  // Verde esmeralda
                                 strokeWidth={2}
                                 name="Consumo Semanal"
+                                dot={{ fill: '#10b981', strokeWidth: 1, r: 3 }}
+                                strokeDasharray="3 3"  // Patrón diferente
                             />
                         )}
                     </LineChart>
