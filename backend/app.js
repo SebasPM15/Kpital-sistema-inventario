@@ -17,7 +17,7 @@ const app = express();
 // 1. Configuración de Seguridad
 app.use(helmet());
 app.use(cors({
-    origin: '*', // Aceptar peticiones de cualquier origen
+    origin: 'https://kpital-sistema-inventario-frontend.onrender.com', // Aceptar peticiones de cualquier origen
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'], // Permitir todos los métodos HTTP comunes
     allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept'] // Ampliar encabezados permitidos
 }));
