@@ -116,7 +116,7 @@ const Dashboard = () => {
         const fetchData = async () => {
             try {
                 setLoading(true);
-                const response = await axios.get('http://localhost:3500/api/predictions');
+                const response = await axios.get('https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions');
 
                 if (response.data?.success) {
                     setAllPredictions(Array.isArray(response.data.data) ? response.data.data : []);
@@ -648,7 +648,7 @@ const Dashboard = () => {
             setProcessing(true);
             setError(null);
 
-            const response = await axios.post('http://localhost:3500/api/predictions/refresh', formData, {
+            const response = await axios.post('https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions/refresh', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data'
                 },
@@ -663,7 +663,7 @@ const Dashboard = () => {
             setSelectedFile(null);
             setExcelSubido(true);
 
-            const predictionsResponse = await axios.get('http://localhost:3500/api/predictions');
+            const predictionsResponse = await axios.get('https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions');
             setAllPredictions(predictionsResponse.data.data || []);
 
         } catch (error: any) {
@@ -684,7 +684,7 @@ const Dashboard = () => {
         setLoading(true);
         setError(null);
         try {
-            const response = await axios.get<PredictionData>(`http://localhost:3500/api/predictions/${codigo}`);
+            const response = await axios.get<PredictionData>(`https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions/${codigo}`);
 
             if (!response.data?.data) {
                 throw new Error('Datos incompletos recibidos del servidor');
@@ -705,7 +705,7 @@ const Dashboard = () => {
 
     const refreshPredictions = async () => {
         try {
-            const response = await axios.get('http://localhost:3500/api/predictions');
+            const response = await axios.get('https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions');
             if (response.data?.success) {
                 setAllPredictions(response.data.data || []);
             }
@@ -1175,7 +1175,7 @@ const Dashboard = () => {
                 setSuccess(false);
 
                 const response = await axios.post(
-                    `http://localhost:3500/api/predictions/${codigo}/transit`,
+                    `https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions/${codigo}/transit`,
                     { units: Number(transitUnits) }
                 );
 
@@ -1183,7 +1183,7 @@ const Dashboard = () => {
                     setSuccess(true);
                     setTransitUnits('');
 
-                    const updatedResponse = await axios.get<PredictionData>(`http://localhost:3500/api/predictions/${codigo}`);
+                    const updatedResponse = await axios.get<PredictionData>(`https://kpital-sistema-inventario-backend-ia.onrender.com/api/predictions/${codigo}`);
                     setSelectedPrediction(updatedResponse.data);
 
                     setAllPredictions(prev => prev.map(item =>
