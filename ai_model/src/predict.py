@@ -17,17 +17,24 @@ try:
 except:
     locale.setlocale(locale.LC_ALL, '')
 
+# Configuración de rutas base
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+DATA_DIR = os.path.join(BASE_DIR, 'data')
+MODELS_DIR = os.path.join(BASE_DIR, 'models')
+os.makedirs(DATA_DIR, exist_ok=True)
+os.makedirs(MODELS_DIR, exist_ok=True)
+
 # Configuración de argumentos
 parser = argparse.ArgumentParser(description='Generar predicciones de inventario')
 parser.add_argument('--excel', type=str, 
-                   default=os.path.join(os.path.dirname(__file__), '../data/PRUEBA PASANTIAS EPN.xlsx'),
                    help='Ruta al archivo Excel de entrada')
 parser.add_argument('--model', type=str,
-                   default=os.path.join(os.path.dirname(__file__), '../models/prophet_model.pkl.gz'),
+                   default=os.path.join(MODELS_DIR, 'prophet_model.pkl.gz'),
                    help='Ruta al modelo Prophet comprimido')
 parser.add_argument('--transito', type=float, default=0.0,
-                   help='Unidades en tránsito disponibles para asignación (no se aplican automáticamente)')
+                   help='Unidades en tránsito disponibles para asignación')
 args = parser.parse_args()
+
 
 # Diccionario de meses en español
 SPANISH_MONTHS = {
@@ -42,7 +49,7 @@ def setup_logging():
         level=logging.INFO,
         format='%(asctime)s - %(levelname)s - %(message)s',
         handlers=[
-            logging.FileHandler('prediction_log.txt', encoding='utf-8'),
+            logging.FileHandler(os.path.join(BASE_DIR, 'prediction_log.txt'), encoding='utf-8'),
             logging.StreamHandler(sys.stdout)
         ]
     )
@@ -53,7 +60,7 @@ logger = setup_logging()
 def cargar_datos():
     """Carga y valida el archivo Excel."""
     try:
-        logger.info(f"Cargando archivo: {os.path.abspath(args.excel)}")
+        logger.info(f"Cargando archivo: {args.excel}")
         
         if not os.path.exists(args.excel):
             raise FileNotFoundError(f"Archivo no encontrado: {args.excel}")
@@ -96,7 +103,7 @@ def cargar_datos():
 def cargar_modelo_prophet():
     """Carga el modelo Prophet desde el archivo comprimido."""
     try:
-        logger.info(f"Cargando modelo Prophet: {os.path.abspath(args.model)}")
+        logger.info(f"Cargando modelo Prophet: {args.model}")
         
         if not os.path.exists(args.model):
             raise FileNotFoundError(f"Modelo no encontrado: {args.model}")
@@ -421,8 +428,8 @@ def corregir_valores_nan(data):
 def guardar_resultados(resultados_completos):
     """Guarda los resultados en un único archivo JSON."""
     try:
-        output_dir = os.path.join(os.path.dirname(__file__), '../data')
-        os.makedirs(output_dir, exist_ok=True)
+        # Asegurar que el directorio data existe
+        os.makedirs(DATA_DIR, exist_ok=True)
         
         # Validar y corregir valores NaN en los resultados
         resultados_validados = corregir_valores_nan(resultados_completos)
@@ -442,14 +449,14 @@ def guardar_resultados(resultados_completos):
                 resultados_validados = json.loads(json_str)
         
         # Guardar en un único archivo JSON
-        output_path = os.path.join(output_dir, 'predicciones_completas.json')
+        output_path = os.path.join(DATA_DIR, 'predicciones_completas.json')
         with open(output_path, 'w', encoding='utf-8') as f:
             json.dump(resultados_validados, f, indent=4, ensure_ascii=False)
             
         logger.info(f"Resultados guardados exitosamente en {output_path}")
         
         # Guardar como JSON minificado también (más eficiente para procesamiento)
-        output_path_min = os.path.join(output_dir, 'predicciones_completas.min.json')
+        output_path_min = os.path.join(DATA_DIR, 'predicciones_completas.min.json')
         with open(output_path_min, 'w', encoding='utf-8') as f:
             json.dump(resultados_validados, f, ensure_ascii=False)
             
@@ -462,6 +469,9 @@ def guardar_resultados(resultados_completos):
 def main():
     try:
         logger.info("=== INICIO DEL PROCESO ===")
+        logger.info(f"Directorio base: {BASE_DIR}")
+        logger.info(f"Directorio de datos: {DATA_DIR}")
+        logger.info(f"Directorio de modelos: {MODELS_DIR}")
         
         # Cargar datos
         df = cargar_datos()

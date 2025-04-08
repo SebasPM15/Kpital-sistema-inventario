@@ -6,11 +6,15 @@ import { logger } from '../utils/logger.js';
 
 class PythonService {
     constructor() {
-        // Se usa la ruta definida en las constantes, similar a AIService
-        this.scriptPath = path.join(PATHS.AI_MODEL_DIR, 'src/predict.py');
-        this.dataDir = path.dirname(PATHS.PREDICTIONS_FILE);
-        this.predictionsFile = PATHS.PREDICTIONS_FILE;
+        this.scriptPath = path.join(process.cwd(), 'ai_model', 'src', 'predict.py');
+        this.dataDir = path.join(process.cwd(), 'ai_model', 'data');
+        this.predictionsFile = path.join(this.dataDir, 'predicciones_completas.min.json');
         this.timeout = 300000; // 5 minutos
+        
+        // Asegurar que el directorio data existe
+        fs.mkdir(this.dataDir, { recursive: true }).catch(err => {
+            logger.error(`Error creating data directory: ${err}`);
+        });
     }
 
     async processExcel(file) {
