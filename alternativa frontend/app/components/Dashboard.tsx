@@ -10,7 +10,8 @@ import {
     FaUser, FaSignOutAlt, FaFileAlt, FaChartPie, FaExchangeAlt,
     FaShieldAlt,
     FaTable,
-    FaFileExport
+    FaFileExport,
+    FaSearch
 } from 'react-icons/fa';
 import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
@@ -109,6 +110,8 @@ const ITEMS_PER_PAGE = 12;
 const Dashboard = () => {
     // Estados
     const [allPredictions, setAllPredictions] = useState<ProductoData[]>([]);
+    const [filteredPredictions, setFilteredPredictions] = useState<ProductoData[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
     const [selectedPrediction, setSelectedPrediction] = useState<PredictionData | null>(null);
     const [currentPage, setCurrentPage] = useState(1);
     const [loading, setLoading] = useState(false);
@@ -122,11 +125,32 @@ const Dashboard = () => {
     const [activeTab, setActiveTab] = useState('general');
     const [chartView, setChartView] = useState<'semanal' | 'mensual'>('semanal');
     const [sidebarOpen, setSidebarOpen] = useState(true);
+    const searchInputRef = useRef<HTMLInputElement>(null);
 
     // Refs
     const chartRef = useRef<HTMLDivElement>(null);
 
     // Efectos
+    useEffect(() => {
+        if (!searchTerm) {
+            setFilteredPredictions(allPredictions);
+            setCurrentPage(1);
+            return;
+        }
+
+        const filtered = allPredictions.filter(producto => {
+            const searchLower = searchTerm.toLowerCase();
+            return (
+                producto.CODIGO.toLowerCase().includes(searchLower) ||
+                producto.DESCRIPCION.toLowerCase().includes(searchLower)
+            );
+        });
+
+        setFilteredPredictions(filtered);
+        setCurrentPage(1);
+    }, [searchTerm, allPredictions]);
+
+    // Efecto para cargar datos iniciales
     useEffect(() => {
         const fetchData = async () => {
             try {
@@ -134,13 +158,17 @@ const Dashboard = () => {
                 const response = await axios.get(`${API_URL}/predictions`);
 
                 if (response.data?.success) {
-                    setAllPredictions(Array.isArray(response.data.data) ? response.data.data : []);
+                    const data = Array.isArray(response.data.data) ? response.data.data : [];
+                    setAllPredictions(data);
+                    setFilteredPredictions(data);
                 } else {
                     setAllPredictions([]);
+                    setFilteredPredictions([]);
                 }
             } catch (error) {
                 console.error('Error fetching data:', error);
                 setAllPredictions([]);
+                setFilteredPredictions([]);
             } finally {
                 setLoading(false);
             }
@@ -197,21 +225,21 @@ const Dashboard = () => {
 
     const handleDownloadPDF = async () => {
         if (!selectedPrediction) return;
-    
+
         try {
             const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
-    
+
             // Configuración de márgenes y espacios
             const margin = {
                 left: 15,
                 right: 15,
-                top: 20,
+                top: 15,  // Reducido para dar más espacio al logo
                 bottom: 20
             };
             const pageWidth = 210;
             const contentWidth = pageWidth - margin.left - margin.right;
             let currentY = margin.top;
-    
+
             // Configuración de fuentes y colores corporativos
             pdf.setFont('helvetica');
             const primaryBlue: [number, number, number] = [0, 50, 104]; // #003268
@@ -219,41 +247,75 @@ const Dashboard = () => {
             const cyan: [number, number, number] = [0, 176, 240]; // #00B0F0
             const darkBlue: [number, number, number] = [0, 26, 48]; // #001A30
             const smokeColor: [number, number, number] = [237, 237, 237]; // #EDEDED
-    
+            const successGreen: [number, number, number] = [25, 135, 84]; // #198754
+            const dangerRed: [number, number, number] = [220, 53, 69]; // #DC3545
+            const warningYellow: [number, number, number] = [255, 193, 7]; // #FFC107
+
             // --- ENCABEZADO CON LOGO ---
             const logoData = await getBase64ImageFromURL('/Logo_Kpital.jpg') as string;
-    
-            // Logo centrado
-            const logoWidth = 50;
-            const logoHeight = 20;
+
+            // Ajuste profesional del logo
+            const logoMaxHeight = 20; // Altura máxima en mm
+            const logoMaxWidth = 60;  // Ancho máximo en mm
+
+            // Calcular dimensiones manteniendo aspecto ratio
+            let logoWidth = logoMaxWidth;
+            let logoHeight = logoMaxHeight;
+
+            // Obtener dimensiones reales de la imagen
+            const img = new Image();
+            img.src = logoData;
+            await new Promise((resolve) => {
+                img.onload = resolve;
+            });
+
+            const aspectRatio = img.width / img.height;
+
+            // Ajustar para mantener proporciones
+            if (img.width > img.height) {
+                logoHeight = logoWidth / aspectRatio;
+                if (logoHeight > logoMaxHeight) {
+                    logoHeight = logoMaxHeight;
+                    logoWidth = logoHeight * aspectRatio;
+                }
+            } else {
+                logoWidth = logoHeight * aspectRatio;
+                if (logoWidth > logoMaxWidth) {
+                    logoWidth = logoMaxWidth;
+                    logoHeight = logoWidth / aspectRatio;
+                }
+            }
+
+            // Posición centrada
             const logoX = (pageWidth - logoWidth) / 2;
             const logoY = margin.top;
-    
-            pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight);
-    
-            // Título principal debajo del logo
+
+            pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
+
+            // Título principal
             pdf.setFontSize(14);
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
             pdf.text('INFORME DE GESTIÓN DE INVENTARIOS', pageWidth / 2, logoY + logoHeight + 10, { align: 'center' });
-    
+
             // Línea decorativa
             pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
             pdf.setLineWidth(0.5);
             currentY = logoY + logoHeight + 15;
             pdf.line(margin.left, currentY, pageWidth - margin.right, currentY);
-    
+
             currentY += 15;
-    
+
             // --- INFORMACIÓN DEL PRODUCTO ---
             pdf.setFontSize(10);
             pdf.setTextColor(100, 100, 100);
-    
+
             const descripcion = pdf.splitTextToSize(selectedPrediction.data.DESCRIPCION, contentWidth - 40);
-    
+
             pdf.text(`Código: ${selectedPrediction.data.CODIGO}`, margin.left, currentY);
             pdf.text(`Producto:`, margin.left, currentY + 6);
             pdf.text(descripcion, margin.left + 20, currentY + 6);
-    
+
             pdf.text(`Generado el: ${new Date().toLocaleDateString('es-ES', {
                 day: '2-digit',
                 month: 'long',
@@ -261,9 +323,9 @@ const Dashboard = () => {
                 hour: '2-digit',
                 minute: '2-digit'
             })}`, pageWidth - margin.right, currentY, { align: 'right' });
-    
+
             currentY += 6 + (descripcion.length * 5) + 10;
-    
+
             // Función para agregar nueva página si es necesario
             const checkPageBreak = (requiredSpace: number) => {
                 if (currentY + requiredSpace > 297 - margin.bottom) {
@@ -275,62 +337,73 @@ const Dashboard = () => {
                     currentY += 10;
                 }
             };
-    
+
             // --- RESUMEN EJECUTIVO ---
             checkPageBreak(40);
-            pdf.setFontSize(12);
+            pdf.setFontSize(14);
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+            pdf.setFont('helvetica', 'bold');
             pdf.text('1. RESUMEN EJECUTIVO', margin.left, currentY);
-            currentY += 8;
-    
+
+            pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
+            currentY += 12;
+
+            // Configuración base para el texto
+            pdf.setFontSize(10);
+            pdf.setTextColor(60, 60, 60); // Gris oscuro para mejor legibilidad
+
             const status = getStockStatus(
                 selectedPrediction.data.STOCK_TOTAL,
                 selectedPrediction.data.STOCK_SEGURIDAD,
                 selectedPrediction.data.PUNTO_REORDEN
             );
-    
+
             let statusMessage = '';
             let statusColor: [number, number, number] = oceanBlue;
-            let statusIcon = '';
-    
+
             if (status === 'danger') {
                 statusMessage = 'NIVEL CRÍTICO';
-                statusColor = [220, 53, 69];
-                statusIcon = '⚠';
+                statusColor = dangerRed;
             } else if (status === 'warning') {
                 statusMessage = 'NIVEL BAJO';
-                statusColor = [255, 193, 7];
-                statusIcon = '⚠';
+                statusColor = warningYellow;
             } else {
                 statusMessage = 'NIVEL ÓPTIMO';
-                statusColor = [40, 167, 69];
-                statusIcon = '✓';
+                statusColor = successGreen;
             }
-    
-            // Etiqueta de estado con ícono (usando texto simple en lugar de emoji)
+
+            // Contenedor centrado para el estado
+            const statusWidth = 60;
+            const statusX = (pageWidth - statusWidth) / 2;
+
+            // Etiqueta de estado centrada
             pdf.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
-            pdf.roundedRect(margin.left, currentY + 5, 50, 8, 3, 3, 'F');
+            pdf.roundedRect(statusX, currentY + 5, statusWidth, 10, 3, 3, 'F');
             pdf.setTextColor(255, 255, 255);
-            pdf.setFontSize(9);
-            pdf.text(`${statusMessage}`, margin.left + 5, currentY + 10);
-    
-            // Texto descriptivo del estado
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(statusMessage, pageWidth / 2, currentY + 11, { align: 'center' });
+
+            // Texto descriptivo del estado (centrado)
             pdf.setTextColor(0, 0, 0);
             pdf.setFontSize(10);
-            const statusDescription = status === 'danger' 
+            pdf.setFont('helvetica', 'normal');
+            const statusDescription = status === 'danger'
                 ? 'Se requiere acción inmediata para reponer stock'
                 : status === 'warning'
-                ? 'Monitorear estrechamente el inventario'
-                : 'El inventario se encuentra en niveles adecuados';
-    
-            pdf.text(statusDescription, margin.left + 55, currentY + 10);
-    
-            currentY += 20;
-    
+                    ? 'Monitorear estrechamente el inventario'
+                    : 'El inventario se encuentra en niveles adecuados';
+
+            pdf.text(statusDescription, pageWidth / 2, currentY + 22, { align: 'center' });
+
+            currentY += 30;
+
             // --- DATOS CLAVE EN TABLA ---
             checkPageBreak(100);
             const porcentajeSS = Math.round(selectedPrediction.data.STOCK_SEGURIDAD / selectedPrediction.data.CONSUMO_PROMEDIO * 100);
-    
+
             autoTable(pdf, {
                 startY: currentY,
                 head: [['Indicador', 'Valor']],
@@ -362,6 +435,7 @@ const Dashboard = () => {
                     fontSize: 9,
                     valign: 'middle',
                     lineColor: [200, 200, 200],
+                    lineWidth: 0.5,
                     overflow: 'linebreak'
                 },
                 columnStyles: {
@@ -374,128 +448,193 @@ const Dashboard = () => {
                     }
                 }
             });
-    
-            // --- ANÁLISIS DETALLADO ---
-            currentY = (pdf.lastAutoTable?.finalY || currentY) + 15;
-            checkPageBreak(60);
-            pdf.setFontSize(12);
+
+            // --- ANÁLISIS DETALLADO --- (Versión optimizada con análisis profundo)
+            currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
+            checkPageBreak(150);
+
+            // Título de sección
+            pdf.setFontSize(14);
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-            pdf.text('2. ANÁLISIS DETALLADO', margin.left, currentY);
-            currentY += 10;
-    
-            pdf.setFontSize(10);
-            pdf.setTextColor(0, 0, 0);
-            
-            const analysisText = [
-                `El análisis muestra que el producto ${selectedPrediction.data.CODIGO} tiene un consumo promedio de ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)} unidades mensuales, equivalente a ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} unidades por día.`,
-                `El stock de seguridad está calculado en ${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} unidades (${porcentajeSS}% del consumo mensual), proporcionando un colchón para fluctuaciones en la demanda.`
-            ];
-    
-            analysisText.forEach(text => {
-                const splitText = pdf.splitTextToSize(text, contentWidth);
-                splitText.forEach((line: string | string[]) => {
-                    checkPageBreak(6);
-                    pdf.text(line, margin.left, currentY);
-                    currentY += 6;
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('2. ANÁLISIS ESTRATÉGICO DE INVENTARIO', margin.left, currentY);
+            pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
+            currentY += 12;
+
+            // Configuración base para texto
+            pdf.setFontSize(9);
+            pdf.setTextColor(60, 60, 60);
+
+            // Función para texto compacto
+            const addCompactText = (text: string, isBold = false, indent = 0) => {
+                pdf.setFont('helvetica', isBold ? 'bold' : 'normal');
+                const lines = pdf.splitTextToSize(text, contentWidth - indent);
+                lines.forEach((line: string) => {
+                    checkPageBreak(5);
+                    pdf.text(line, margin.left + indent, currentY);
+                    currentY += 5;
                 });
-            });
-    
-            // Fórmulas destacadas
-            checkPageBreak(25);
+            };
+
+            // 1. Contexto Operacional
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-            pdf.text('Cálculos Clave:', margin.left, currentY);
-            currentY += 8;
-    
+            addCompactText('Situación Actual:', true);
+            currentY += 2;
+
+            addCompactText(
+                `El producto ${selectedPrediction.data.CODIGO} muestra un stock total de ${selectedPrediction.data.STOCK_TOTAL} unidades ` +
+                `(${selectedPrediction.data.STOCK_FISICO} físicas + ${selectedPrediction.data.UNIDADES_TRANSITO_DISPONIBLES} en tránsito), ` +
+                `con una cobertura de ${selectedPrediction.data.DIAS_COBERTURA} días frente a los ${selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD} ` +
+                `días recomendados, situándose en un nivel ${selectedPrediction.data.DIAS_COBERTURA < selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD ? 'CRÍTICO' : 'DE ALERTA'}.`
+            );
+            currentY += 6;
+
+            // 2. Análisis de Comportamiento
+            pdf.setFont('helvetica', 'bold');
+            addCompactText('Patrón de Consumo:', true);
+            currentY += 2;
+
+            const variabilidad = calculateVariability(selectedPrediction.data.HISTORICO_CONSUMOS);
+            const desviacion = calculateStandardDeviation(Object.values(selectedPrediction.data.HISTORICO_CONSUMOS)) || 15;
+            addCompactText(
+                `El histórico muestra un consumo promedio de ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)}±${desviacion.toFixed(0)} u/mes ` +
+                `(variabilidad ${variabilidad.toFixed(1)}%), indicando una demanda ${variabilidad > 25 ? 'VOLÁTIL' : 'ESTABLE'}. ` +
+                `El punto de reorden actual (${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} u) y stock de seguridad ` +
+                `(${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} u) están ${variabilidad > 25 ? 'POR DEBAJO' : 'ACORDE'} ` +
+                `a la variabilidad observada.`
+            );
+            currentY += 6;
+
+            // 3. Evaluación de Riesgos
+            pdf.setFont('helvetica', 'bold');
+            addCompactText('Riesgos Operacionales:', true);
+            currentY += 2;
+
+            const riesgoStockout = calculateStockoutRisk(selectedPrediction.data);
+            addCompactText(
+                `Existe un ${riesgoStockout.toFixed(1)}% de probabilidad de quiebre de stock considerando: ` +
+                `(1) Cobertura actual insuficiente (${selectedPrediction.data.DIAS_COBERTURA} días), ` +
+                `(2) Tiempo de reposición de ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} días, ` +
+                `(3) Variabilidad del ${variabilidad.toFixed(1)}%. El déficit actual de ` +
+                `${selectedPrediction.data.DEFICIT > 0 ? selectedPrediction.data.DEFICIT.toFixed(0) + ' u' : '0'} ` +
+                `(${(selectedPrediction.data.DEFICIT / selectedPrediction.data.STOCK_MINIMO * 100).toFixed(1)}% del mínimo) ` +
+                `agrega presión al sistema.`
+            );
+            currentY += 6;
+
+            // 4. Plan de Acción
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(successGreen[0], successGreen[1], successGreen[2]);
+            addCompactText('Acciones Recomendadas:', true);
+            pdf.setTextColor(60, 60, 60);
+            currentY += 2;
+
+            addCompactText(`• Pedido inmediato: ${selectedPrediction.data.CAJAS_A_PEDIR} cajas (${selectedPrediction.data.UNIDADES_A_PEDIR} u)`);
+            addCompactText(`• Fecha reposición: ${formatDate(selectedPrediction.data.FECHA_REPOSICION)}`);
+            addCompactText(`• Optimización parámetros:`);
+            addCompactText(`  - Aumentar stock seguridad a ${Math.round(selectedPrediction.data.STOCK_SEGURIDAD * 1.15)} u (+15%)`, false, 10);
+            addCompactText(`  - Reducir lead time a 10 días (actual: ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} días)`, false, 10);
+            addCompactText(`  - Revisar algoritmo de reorden cada trimestre`, false, 10);
+            currentY += 6;
+
+            // 5. Análisis Estratégico (en lugar de conclusión)
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+            addCompactText('Análisis Estratégico:', true);
+            pdf.setFont('helvetica', 'normal');
+            currentY += 2;
+
+            addCompactText(
+                `El comportamiento actual del inventario sugiere que ${selectedPrediction.data.DIAS_COBERTURA < 15 ? 'se requiere intervención ' + 
+                'inmediata para evitar rupturas de stock' : 'existe un margen de seguridad que permite ' + 
+                'acciones planificadas'}. La ${variabilidad > 25 ? 'alta' : 'moderada'} variabilidad ` +
+                `del consumo (${variabilidad.toFixed(1)}%) justifica adoptar una estrategia ${variabilidad > 25 ? 
+                '"just-in-case" con inventarios de seguridad más conservadores' : '"just-in-time" con ' + 
+                'revisiones frecuentes'}. El lead time actual de ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} ` +
+                `días ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION > 10 ? 'debería reducirse para mejorar ' + 
+                'la respuesta' : 'es adecuado para el patrón de consumo actual'}.`
+            );
+            currentY += 10;
+
+            // Resetear estilo para secciones siguientes
             pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(0, 0, 0);
-            
+
+            // --- CÁLCULOS CLAVE --- (SECCIÓN AÑADIDA)
+            currentY += 15;
+
+            pdf.setFontSize(14);
+            pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text('3. CÁLCULOS CLAVE', margin.left, currentY);
+
+            pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
+            currentY += 12;
+
+            // Configuración base para el texto
+            pdf.setFontSize(10);
+            pdf.setTextColor(60, 60, 60); // Gris oscuro para mejor legibilidad
+
             const formulas = [
                 `• Stock Mínimo = Consumo Mensual + Stock Seguridad`,
                 `  ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)} + ${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} = ${selectedPrediction.data.STOCK_MINIMO.toFixed(0)} unidades`,
                 `• Punto de Reorden = Consumo Diario × 44 días`,
-                `  ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} × 44 = ${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} unidades`
+                `  ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} × 44 = ${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} unidades`,
+                `• Días de Cobertura = Stock Actual / Consumo Diario`,
+                `  ${selectedPrediction.data.STOCK_TOTAL.toFixed(0)} / ${selectedPrediction.data.CONSUMO_DIARIO.toFixed(2)} = ${selectedPrediction.data.DIAS_COBERTURA} días`
             ];
-    
-            formulas.forEach(formula => {
+
+            formulas.forEach((formula, index) => {
                 checkPageBreak(6);
                 pdf.text(formula, margin.left + (formula.startsWith('•') ? 0 : 10), currentY);
-                currentY += 6;
+
+                // Añadir espacio extra después de cada fórmula completa
+                if (index % 2 === 1) {
+                    currentY += 8; // Más espacio entre fórmulas
+                } else {
+                    currentY += 6;
+                }
             });
-    
-            // Espacio adicional antes de la siguiente sección
-            currentY += 10;
-    
-            // --- RECOMENDACIONES ---
-            checkPageBreak(35);
-            pdf.setFontSize(12);
-            pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
-            pdf.text('3. RECOMENDACIONES', margin.left, currentY);
-            currentY += 12;
-    
-            pdf.setFontSize(10);
-            pdf.setTextColor(0, 0, 0);
-            
-            const recommendations = [
-                `Ordenar ${selectedPrediction.data.CAJAS_A_PEDIR} cajas (${selectedPrediction.data.UNIDADES_A_PEDIR} unidades) lo antes posible`,
-                `Fecha sugerida de pedido: ${new Date().toLocaleDateString()}`,
-                `Fecha estimada de reposición: ${selectedPrediction.data.FECHA_REPOSICION}`,
-                `Justificación: Stock actual (${selectedPrediction.data.STOCK_TOTAL.toFixed(0)}u) bajo punto de reorden (${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)}u)`,
-                `Tiempo de cobertura actual: ${selectedPrediction.data.DIAS_COBERTURA} días`,
-                `Frecuencia sugerida de reposición: Cada ${selectedPrediction.data.PROYECCIONES[0]?.frecuencia_reposicion || 30} días`
-            ];
-    
-            recommendations.forEach(rec => {
-                checkPageBreak(7);
-                pdf.setFillColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
-                pdf.circle(margin.left + 3, currentY - 1, 1.5, 'F');
-                pdf.text(` ${rec}`, margin.left + 8, currentY);
-                currentY += 7;
-            });
-    
+
             // --- GRÁFICO DE PREDICCIONES ---
             checkPageBreak(160);
             currentY += 15;
-            pdf.setFontSize(12);
+            pdf.setFontSize(14);
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+            pdf.setFont('helvetica', 'bold');
             pdf.text('4. GRÁFICO DE PREDICCIONES', margin.left, currentY);
+
+            pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
             currentY += 12;
-    
-            // Agregar leyenda explicativa antes del gráfico
-            const leyendaGrafico = [
-                "Leyenda:",
-                "• Línea Azul: Stock proyectado (disminuye con el consumo)",
-                "• Línea Cian: Stock de seguridad (nivel mínimo requerido)",
-                "• Línea Azul Oscuro: Punto de reorden (nivel para realizar pedido)",
-                "• Línea Verde: Stock actual (nivel actual de inventario)"
-            ];
 
-            leyendaGrafico.forEach((linea, index) => {
-                checkPageBreak(6);
-                pdf.setFontSize(index === 0 ? 10 : 9);
-                pdf.setTextColor(index === 0 ? darkBlue[0] : 0, index === 0 ? darkBlue[1] : 0, index === 0 ? darkBlue[2] : 0);
-                pdf.text(linea, margin.left, currentY + 6 + (index * 5));
-            });
-
-            currentY += 6 + (leyendaGrafico.length * 5) + 10;
+            // Configuración base para el texto
+            pdf.setFontSize(10);
+            pdf.setTextColor(60, 60, 60); // Gris oscuro para mejor legibilidad
 
             // Crear canvas oculto en el DOM con mayor tamaño
             const canvas = document.createElement('canvas');
-            canvas.width = 1000;  // Aumentado para mejor calidad
-            canvas.height = 600;   // Aumentado para mejor calidad
+            canvas.width = 1000;
+            canvas.height = 600;
             canvas.style.display = 'none';
             document.body.appendChild(canvas);
-    
-            // Generar el gráfico con colores corporativos y leyendas
+
+            // Generar el gráfico
             const ctx = canvas.getContext('2d');
             if (ctx) {
                 const proyecciones = selectedPrediction.data.PROYECCIONES;
-                const meses = proyecciones.map(p => p.mes);
+                const meses = proyecciones.map(p => formatMes(p.mes));
                 const stockProyectado = proyecciones.map(p => p.stock_proyectado);
                 const stockSeguridad = proyecciones.map(p => p.stock_seguridad);
                 const puntoReorden = proyecciones.map(p => p.punto_reorden);
-    
-                // Configuración del gráfico con estilos mejorados
+                const consumoMensual = proyecciones.map(p => p.consumo_mensual);
+
                 const chart = new Chart(ctx, {
                     type: 'line',
                     data: {
@@ -504,47 +643,53 @@ const Dashboard = () => {
                             {
                                 label: 'Stock Proyectado',
                                 data: stockProyectado,
-                                borderColor: `rgb(${oceanBlue.join(',')})`,
-                                backgroundColor: `rgba(${oceanBlue.join(',')}, 0.2)`,
+                                borderColor: '#0074CF', // Azul principal
+                                backgroundColor: 'rgba(0, 176, 240, 0.15)', // Cyan con opacidad
                                 tension: 0.1,
                                 fill: true,
-                                borderWidth: 3
-                            },
-                            {
-                                label: 'Stock de Seguridad',
-                                data: stockSeguridad,
-                                borderColor: `rgb(${cyan.join(',')})`,
-                                backgroundColor: `rgba(${cyan.join(',')}, 0.2)`,
-                                borderDash: [5, 5],
-                                tension: 0.1,
-                                borderWidth: 2
+                                borderWidth: 3,
+                                pointBackgroundColor: '#0074CF',
+                                pointRadius: 5,
+                                pointHoverRadius: 7
                             },
                             {
                                 label: 'Punto de Reorden',
                                 data: puntoReorden,
-                                borderColor: `rgb(${primaryBlue.join(',')})`,
-                                backgroundColor: `rgba(${primaryBlue.join(',')}, 0.2)`,
-                                borderDash: [5, 5],
+                                borderColor: '#EF4444', // Rojo
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                borderDash: [5, 3],
                                 tension: 0.1,
-                                borderWidth: 2
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#EF4444',
+                                pointRadius: 4
                             },
                             {
-                                label: 'Stock Actual',
-                                data: Array(meses.length).fill(selectedPrediction.data.STOCK_TOTAL),
-                                borderColor: '#10B981',
+                                label: 'Stock de Seguridad',
+                                data: stockSeguridad,
+                                borderColor: '#001A30', // Azul oscuro
+                                backgroundColor: 'rgba(0, 26, 48, 0.1)',
+                                borderDash: [4, 2],
+                                tension: 0.1,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#001A30',
+                                pointRadius: 4
+                            },
+                            {
+                                label: 'Consumo Mensual',
+                                data: consumoMensual,
+                                borderColor: '#10B981', // Verde
                                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                                borderWidth: 2,
-                                borderDash: [6, 6],
-                                pointRadius: 0
+                                borderDash: [3, 3],
+                                tension: 0.1,
+                                borderWidth: 2.5,
+                                pointBackgroundColor: '#10B981',
+                                pointRadius: 4
                             }
                         ]
                     },
                     options: {
                         responsive: true,
                         maintainAspectRatio: false,
-                        animation: {
-                            duration: 0
-                        },
                         plugins: {
                             title: {
                                 display: true,
@@ -554,7 +699,7 @@ const Dashboard = () => {
                                     family: 'Helvetica',
                                     weight: 'bold'
                                 },
-                                color: `rgb(${darkBlue.join(',')})`,
+                                color: '#001A30',
                                 padding: {
                                     top: 10,
                                     bottom: 30
@@ -565,34 +710,53 @@ const Dashboard = () => {
                                 labels: {
                                     font: {
                                         size: 16,
-                                        family: 'Helvetica',
-                                        weight: 'bold'
+                                        family: 'Helvetica'
                                     },
-                                    padding: 30,
+                                    padding: 20,
+                                    boxWidth: 20,
+                                    boxHeight: 20,
                                     usePointStyle: true,
-                                    pointStyle: 'circle',
-                                    boxWidth: 12
-                                }
+                                    color: '#001A30'
+                                },
                             },
                             tooltip: {
-                                bodyFont: {
-                                    size: 14,
-                                    family: 'Helvetica'
-                                },
-                                titleFont: {
-                                    size: 16,
-                                    family: 'Helvetica',
-                                    weight: 'bold'
+                                backgroundColor: '#FFFFFF',
+                                titleColor: '#001A30',
+                                bodyColor: '#001A30',
+                                borderColor: '#EDEDED',
+                                borderWidth: 1,
+                                padding: 12,
+                                cornerRadius: 6,
+                                usePointStyle: true,
+                                boxPadding: 6,
+                                callbacks: {
+                                    label: function (context) {
+                                        return `${context.dataset.label}: ${context.parsed.y.toFixed(0)} unidades`;
+                                    }
                                 }
                             }
                         },
                         scales: {
+                            x: {
+                                ticks: {
+                                    color: '#001A30',
+                                    font: {
+                                        family: 'Helvetica',
+                                        size: 12
+                                    },
+                                    padding: 10
+                                },
+                                grid: {
+                                    color: 'rgba(237, 237, 237, 0.5)',
+                                    drawOnChartArea: true, // Esta es la propiedad correcta para mostrar/ocultar líneas
+                                    drawTicks: false // Oculta los ticks menores
+                                }
+                            },
                             y: {
-                                type: 'linear',
-                                beginAtZero: false,
                                 title: {
                                     display: true,
                                     text: 'Unidades',
+                                    color: '#001A30',
                                     font: {
                                         size: 16,
                                         family: 'Helvetica',
@@ -600,64 +764,84 @@ const Dashboard = () => {
                                     }
                                 },
                                 ticks: {
+                                    color: '#001A30',
                                     font: {
-                                        size: 14,
-                                        family: 'Helvetica'
-                                    },
-                                    padding: 10
+                                        family: 'Helvetica',
+                                        size: 12
+                                    }
                                 },
                                 grid: {
-                                    color: 'rgba(0, 0, 0, 0.1)',
-                                    lineWidth: 1
-                                }
-                            },
-                            x: {
-                                type: 'category',
-                                ticks: {
-                                    font: {
-                                        size: 14,
-                                        family: 'Helvetica'
-                                    },
-                                    padding: 10
-                                },
-                                grid: {
-                                    color: 'rgba(0, 0, 0, 0.05)',
-                                    lineWidth: 1
+                                    color: 'rgba(237, 237, 237, 0.5)',
+                                    drawOnChartArea: true, // Esta es la propiedad correcta para mostrar/ocultar líneas
+                                    drawTicks: false // Oculta los ticks menores
                                 }
                             }
                         }
                     }
                 });
-    
+
                 await new Promise(resolve => setTimeout(resolve, 500));
-    
+
                 try {
                     const chartImage = canvas.toDataURL('image/png', 1.0);
-                    
-                    if (chartImage && chartImage.startsWith('data:image/png')) {
-                        const imgWidth = contentWidth;
-                        const imgHeight = (canvas.height * imgWidth) / canvas.width;
-                        
-                        checkPageBreak(imgHeight + 15);
-                        pdf.addImage(chartImage, 'PNG', margin.left, currentY, imgWidth, imgHeight);
-                        currentY += imgHeight + 15;
-                    }
+                    const imgWidth = contentWidth;
+                    const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+                    checkPageBreak(imgHeight + 15);
+                    pdf.addImage(chartImage, 'PNG', margin.left, currentY, imgWidth, imgHeight);
+
+                    // Agregar leyenda explicativa debajo del gráfico
+                    currentY += imgHeight + 10;
+                    checkPageBreak(60);
+
+                    const legendText = [
+                        'Cómo interpretar este gráfico:',
+                        '- Área Azul: Stock proyectado',
+                        '- Línea Roja: Punto de reorden',
+                        '- Línea Azul Oscuro: Stock de seguridad',
+                        '- Línea Verde: Consumo mensual'
+                    ];
+
+                    pdf.setFontSize(9);
+                    pdf.setTextColor(100, 100, 100);
+
+                    legendText.forEach((text, index) => {
+                        if (index === 0) {
+                            pdf.setFont('helvetica', 'bold');
+                            pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+                        } else {
+                            pdf.setFont('helvetica', 'normal');
+                            pdf.setTextColor(100, 100, 100);
+                        }
+
+                        pdf.text(text, margin.left, currentY);
+                        currentY += 5;
+                    });
+
+                    currentY += 10;
                 } finally {
-                    // Limpiar
                     chart.destroy();
                     document.body.removeChild(canvas);
                 }
             }
-    
-            // --- PROYECCIÓN MENSUAL (TABLA CENTRADA) ---
+
+            // --- PROYECCIÓN MENSUAL (TABLA) ---
             checkPageBreak(40);
-            pdf.setFontSize(12);
+            pdf.setFontSize(14);
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
+            pdf.setFont('helvetica', 'bold');
             pdf.text('5. PROYECCIÓN MENSUAL', margin.left, currentY);
+
+            pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
             currentY += 12;
-    
+
+            // Configuración base para el texto
+            pdf.setFontSize(10);
+            pdf.setTextColor(60, 60, 60); // Gris oscuro para mejor legibilidad
             const proyeccionData = selectedPrediction.data.PROYECCIONES.map(proyeccion => {
-                // Usar texto simple para alertas en lugar de emojis
+                const alerta = proyeccion.alerta_stock;
                 return [
                     proyeccion.mes,
                     proyeccion.stock_proyectado.toFixed(0),
@@ -665,14 +849,14 @@ const Dashboard = () => {
                     proyeccion.punto_reorden.toFixed(0),
                     proyeccion.cajas_a_pedir > 0 ? proyeccion.cajas_a_pedir : '-',
                     proyeccion.fecha_reposicion,
-                    proyeccion.alerta_stock ? 'ALERTA' : 'OK'
+                    alerta ? 'ALERTA' : 'OK'
                 ];
             });
-    
+
             // Tabla centrada con márgenes
             const tableWidth = 150;
             const tableMarginLeft = (pageWidth - tableWidth) / 2;
-    
+
             autoTable(pdf, {
                 startY: currentY,
                 head: [['Mes', 'Stock', 'Seguridad', 'Reorden', 'Pedir', 'Fecha Rep.', 'Estado']],
@@ -683,16 +867,22 @@ const Dashboard = () => {
                     textColor: 255,
                     fontStyle: 'bold',
                     halign: 'center',
-                    fontSize: 9
+                    fontSize: 9,
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.2
                 },
                 bodyStyles: {
-                    textColor: 50,
                     halign: 'center',
                     fontSize: 9,
-                    cellPadding: 4
+                    cellPadding: 4,
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.2,
+                    textColor: 50
                 },
                 alternateRowStyles: {
-                    fillColor: smokeColor
+                    fillColor: smokeColor,
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.2
                 },
                 columnStyles: {
                     0: { cellWidth: 25, halign: 'left' },
@@ -701,37 +891,54 @@ const Dashboard = () => {
                     3: { cellWidth: 18 },
                     4: { cellWidth: 15 },
                     5: { cellWidth: 30, halign: 'left' },
-                    6: { 
+                    6: {
                         cellWidth: 20,
                         halign: 'center',
-                        fontStyle: 'bold',
+                        fontStyle: 'bold'
                     }
                 },
                 styles: {
                     fontSize: 9,
                     cellPadding: 3,
-                    overflow: 'linebreak',
-                    lineColor: [200, 200, 200]
+                    lineColor: [0, 0, 0],
+                    lineWidth: 0.2,
+                    overflow: 'linebreak'
+                },
+                didParseCell: (data: any) => {
+                    // Aplicar estilos condicionales a la columna Estado
+                    if (data.section === 'body' && data.column.index === 6) {
+                        const isAlert = data.cell.raw === 'ALERTA';
+                        data.cell.styles.fillColor = isAlert ? dangerRed : successGreen;
+                        data.cell.styles.textColor = isAlert ? [255, 255, 255] : [0, 0, 0];
+                    }
+
+                    // Resaltar filas completas con alerta
+                    if (data.section === 'body' && data.column.index === 0 && data.row.cells[6].raw === 'ALERTA') {
+                        Object.keys(data.row.cells).forEach((key) => {
+                            const cell = data.row.cells[key];
+                            cell.styles.fillColor = [255, 230, 230];
+                        });
+                    }
                 }
             });
-    
+
             // --- PIE DE PÁGINA ---
             pdf.setFontSize(8);
             pdf.setTextColor(100, 100, 100);
             pdf.text('Documento confidencial - Kpital Inventory Management System', margin.left, 290);
             pdf.setTextColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
             pdf.text('www.kpital.com', pageWidth - margin.right, 290, { align: 'right' });
-    
+
             // Guardar PDF
             const fileName = `KPI-Inventory-${selectedPrediction.data.CODIGO}-${new Date().toISOString().slice(0, 10)}.pdf`;
             pdf.save(fileName);
-    
+
         } catch (error) {
             console.error('Error al generar el PDF:', error);
             alert('Ocurrió un error al generar el PDF. Por favor intente nuevamente.');
         }
     };
-    
+
     // Función auxiliar para cargar el logo (debes implementarla según tu entorno)
     async function getBase64ImageFromURL(url: string | URL | Request) {
         const response = await fetch(url);
@@ -826,10 +1033,94 @@ const Dashboard = () => {
         refreshPredictions();
     };
 
+    // Función para resaltar coincidencias en el texto
+    const highlightMatches = (text: string, search: string) => {
+        if (!search.trim()) return text;
+
+        const regex = new RegExp(`(${search.trim()})`, 'gi');
+        const parts = text.split(regex);
+
+        return parts.map((part, index) =>
+            regex.test(part) ? (
+                <span key={index} className="bg-yellow-200 text-black">
+                    {part}
+                </span>
+            ) : (
+                part
+            )
+        );
+    };
+
+    // 1. Cálculo de desviación estándar para medir variabilidad del consumo
+    function calculateStandardDeviation(values: number[]): number {
+        if (!values || values.length === 0) return 0;
+
+        const n = values.length;
+        const mean = values.reduce((a, b) => a + b, 0) / n;
+        const squaredDifferences = values.map(x => Math.pow(x - mean, 2));
+        const variance = squaredDifferences.reduce((a, b) => a + b, 0) / n;
+
+        return Math.sqrt(variance);
+    }
+
+    // 2. Cálculo de variabilidad porcentual (Coeficiente de Variación)
+    function calculateVariability(historicData: Record<string, number>): number {
+        if (!historicData) return 0;
+
+        const values = Object.values(historicData);
+        if (values.length < 3) return 0; // Mínimo 3 meses para cálculo confiable
+
+        const mean = values.reduce((a, b) => a + b, 0) / values.length;
+        if (mean === 0) return 0;
+
+        const stdDev = calculateStandardDeviation(values);
+        return (stdDev / mean) * 100; // Coeficiente de variación en porcentaje
+    }
+
+    // 3. Cálculo de probabilidad de stockout (basado en distribución normal)
+    function calculateStockoutRisk(data: ProductoData): number {
+        if (!data || !data.HISTORICO_CONSUMOS) return 0;
+
+        const values = Object.values(data.HISTORICO_CONSUMOS);
+        if (values.length < 3) return 0;
+
+        const mean = data.CONSUMO_PROMEDIO;
+        const stdDev = calculateStandardDeviation(values);
+        const currentStock = data.STOCK_TOTAL;
+        const leadTime = data.CONFIGURACION.LEAD_TIME_REPOSICION;
+
+        // Cálculo basado en distribución normal
+        const zScore = (currentStock - (mean * leadTime / 30)) / (stdDev * Math.sqrt(leadTime / 30));
+
+        // Función de distribución acumulativa inversa aproximada
+        const t = 1 / (1 + 0.2316419 * Math.abs(zScore));
+        const pd = 1 - 0.3989423 * Math.exp(-zScore * zScore / 2) *
+            ((((1.330274429 * t - 1.821255978) * t + 1.781477937) * t - 0.356563782) * t + 0.319381530) * t;
+
+        return zScore < 0 ? (1 - pd) * 100 : pd * 100;
+    }
+
+    // 7. Formateo de fechas profesional
+    function formatDate(dateString: string): string {
+        if (!dateString) return "Fecha no definida";
+
+        try {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('es-ES', {
+                weekday: 'short',
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric'
+            }).replace(/,\s*/g, ' ');
+        } catch {
+            return dateString;
+        }
+    }
+
     // Funciones auxiliares
-    const totalPages = Math.ceil((allPredictions?.length || 0) / ITEMS_PER_PAGE);
+    const totalPages = Math.ceil((filteredPredictions?.length || 0) / ITEMS_PER_PAGE);
     const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-    const currentPredictions = (allPredictions || []).slice(startIndex, startIndex + ITEMS_PER_PAGE);
+    const currentPredictions = (filteredPredictions || []).slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
     const formatMes = (mes: string) => mes.replace('-', ' ').toUpperCase();
 
@@ -934,9 +1225,9 @@ const Dashboard = () => {
             {/* Encabezado con logo */}
             <div className="text-center mb-10">
                 <div className="flex flex-col items-center justify-center">
-                    <img 
-                        src="/Logo_Kpital.jpg" 
-                        alt="Logo Kpital" 
+                    <img
+                        src="/Logo_Kpital.jpg"
+                        alt="Logo Kpital"
                         className="h-20 w-auto mb-1 object-contain"
                     />
                     <h2 className="font-gotham-medium text-[#0074CF] text-sm tracking-normal mt-0">
@@ -947,7 +1238,7 @@ const Dashboard = () => {
                     Plataforma de Inteligencia Predictiva para Inventarios
                 </p>
             </div>
-    
+
             {/* Sección de requisitos */}
             <div className="mb-10 p-8 bg-[#EDEDED] rounded-xl border border-[#0074CF]/20">
                 <div className="flex items-center gap-3 mb-5">
@@ -958,7 +1249,7 @@ const Dashboard = () => {
                         Especificaciones Técnicas del Archivo
                     </h2>
                 </div>
-    
+
                 <ul className="space-y-3 pl-2">
                     {[
                         { field: "CODIGO", desc: "Identificador único del producto (texto alfanumérico)" },
@@ -976,15 +1267,15 @@ const Dashboard = () => {
                     ))}
                 </ul>
             </div>
-    
+
             {/* Área de carga de archivos */}
-            <motion.div 
+            <motion.div
                 initial="hidden"
                 animate="visible"
                 variants={{
                     hidden: { opacity: 0, y: 20 },
-                    visible: { 
-                        opacity: 1, 
+                    visible: {
+                        opacity: 1,
                         y: 0,
                         transition: { duration: 0.5 }
                     }
@@ -992,13 +1283,13 @@ const Dashboard = () => {
                 className="flex flex-col items-center"
             >
                 <div className="w-full max-w-md mb-6">
-                    <motion.label 
+                    <motion.label
                         className="block font-gotham-medium text-[#001A30] text-sm mb-3"
                         whileHover={{ scale: 1.02 }}
                     >
                         Seleccione su archivo de datos:
                     </motion.label>
-    
+
                     <div className="flex items-center gap-4">
                         <input
                             type="file"
@@ -1013,7 +1304,7 @@ const Dashboard = () => {
                         />
                         <motion.label
                             htmlFor="excel-upload"
-                            whileHover={{ 
+                            whileHover={{
                                 scale: 1.03,
                                 boxShadow: "0 10px 25px -5px rgba(0, 116, 207, 0.3)"
                             }}
@@ -1029,7 +1320,7 @@ const Dashboard = () => {
                             <span className="font-gotham-medium">Seleccionar Archivo</span>
                         </motion.label>
                     </div>
-    
+
                     {selectedFile && (
                         <motion.div
                             initial={{ opacity: 0, y: 10 }}
@@ -1039,15 +1330,15 @@ const Dashboard = () => {
                         >
                             <FaCheckCircle className="text-[#28a745] text-lg" />
                             <span>{selectedFile.name}</span>
-                            <span className="text-[#0074CF] ml-auto text-xs">{Math.round(selectedFile.size/1024)} KB</span>
+                            <span className="text-[#0074CF] ml-auto text-xs">{Math.round(selectedFile.size / 1024)} KB</span>
                         </motion.div>
                     )}
                 </div>
-    
+
                 {selectedFile && (
                     <motion.button
                         onClick={handleProcessFile}
-                        whileHover={{ 
+                        whileHover={{
                             scale: 1.03,
                             boxShadow: "0 10px 25px -5px rgba(0, 116, 207, 0.4)"
                         }}
@@ -1078,7 +1369,7 @@ const Dashboard = () => {
 
     const InventoryChart = ({ data, stockActual }: { data: Proyeccion[], stockActual: number }) => {
         const [chartView, setChartView] = useState<'semanal' | 'mensual'>('mensual');
-        
+
         // Procesar datos para el gráfico
         const monthlyData = data.map(proyeccion => ({
             periodo: formatMes(proyeccion.mes),
@@ -1088,25 +1379,26 @@ const Dashboard = () => {
             consumo: proyeccion.consumo_mensual,
             fechaReposicion: proyeccion.fecha_reposicion
         }));
-    
+
         // Convertir datos mensuales a semanas
         const weeklyData = data.flatMap(proyeccion => {
             const semanas = [];
             const consumoSemanal = proyeccion.consumo_mensual / 4;
             let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
-            
+
             for (let i = 1; i <= 4; i++) {
                 stock -= consumoSemanal;
                 semanas.push({
                     semana: `Sem ${i} ${formatMes(proyeccion.mes)}`,
                     stock: Math.max(0, stock),
                     min: proyeccion.punto_reorden,
+                    seguridad: proyeccion.stock_seguridad,
                     consumo: consumoSemanal
                 });
             }
             return semanas;
         });
-    
+
         return (
             <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm">
                 <div className="flex items-center justify-between mb-4">
@@ -1123,7 +1415,7 @@ const Dashboard = () => {
                         <option value="semanal">Vista Semanal</option>
                     </select>
                 </div>
-                
+
                 {/* Instrucciones del gráfico */}
                 <div className="mb-4 p-3 bg-[#EDEDED] rounded-lg border border-[#0074CF]/20">
                     <h5 className="text-sm font-gotham-bold text-[#001A30] mb-2 flex items-center gap-2">
@@ -1144,9 +1436,9 @@ const Dashboard = () => {
                             </span>
                         </li>
                         <li className="flex items-start gap-2">
-                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#7C3AED] flex-shrink-0"></span>
+                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#001A30] flex-shrink-0"></span>
                             <span className="text-sm">
-                                <span className="font-gotham-medium">Línea Morada:</span> Stock de seguridad
+                                <span className="font-gotham-medium">Línea Azul Oscuro:</span> Stock de seguridad
                             </span>
                         </li>
                         <li className="flex items-start gap-2">
@@ -1157,7 +1449,7 @@ const Dashboard = () => {
                         </li>
                     </ul>
                 </div>
-    
+
                 <div className="h-96">
                     <ResponsiveContainer width="100%" height="100%">
                         <LineChart
@@ -1169,27 +1461,27 @@ const Dashboard = () => {
                                 dataKey={chartView === 'semanal' ? 'semana' : 'periodo'}
                                 angle={-45}
                                 textAnchor="end"
-                                tick={{ 
-                                    fontSize: 12, 
-                                    fill: "#001A30", 
-                                    fontFamily: 'Gotham Regular' 
+                                tick={{
+                                    fontSize: 12,
+                                    fill: "#001A30",
+                                    fontFamily: 'Gotham Regular'
                                 }}
                                 tickMargin={15}
                                 interval={0}
                                 height={60}
                             />
                             <YAxis
-                                tick={{ 
-                                    fill: "#001A30", 
-                                    fontSize: 12, 
-                                    fontFamily: 'Gotham Regular' 
+                                tick={{
+                                    fill: "#001A30",
+                                    fontSize: 12,
+                                    fontFamily: 'Gotham Regular'
                                 }}
                                 label={{
                                     value: 'Unidades',
                                     angle: -90,
                                     position: 'insideLeft',
                                     fill: "#001A30",
-                                    style: { 
+                                    style: {
                                         fontSize: 13,
                                         fontFamily: 'Gotham Medium'
                                     }
@@ -1204,9 +1496,9 @@ const Dashboard = () => {
                                         seguridad: 'Stock de Seguridad',
                                         consumo: chartView === 'semanal' ? 'Consumo Semanal' : 'Consumo Mensual'
                                     };
-                                    
+
                                     return [
-                                        <span className="font-gotham-medium">{formattedValue} unidades</span>, 
+                                        <span className="font-gotham-medium">{formattedValue} unidades</span>,
                                         <span className="font-gotham-regular">{metricNames[name as keyof typeof metricNames] || name}</span>
                                     ];
                                 }}
@@ -1238,7 +1530,7 @@ const Dashboard = () => {
                                 verticalAlign="top"
                                 align="center"
                             />
-                            
+
                             {/* Stock Proyectado */}
                             <Line
                                 type="monotone"
@@ -1256,7 +1548,7 @@ const Dashboard = () => {
                                 fillOpacity={0.15}
                                 stroke="none"
                             />
-                            
+
                             {/* Punto de Reorden */}
                             <Line
                                 type="monotone"
@@ -1267,20 +1559,18 @@ const Dashboard = () => {
                                 name="Punto de Reorden"
                                 dot={{ fill: '#EF4444', strokeWidth: 1, r: 4 }}
                             />
-                            
+
                             {/* Stock de Seguridad */}
-                            {chartView === 'mensual' && (
-                                <Line
-                                    type="monotone"
-                                    dataKey="seguridad"
-                                    stroke="#7C3AED"
-                                    strokeWidth={2.5}
-                                    name="Stock de Seguridad"
-                                    dot={{ fill: '#7C3AED', strokeWidth: 1, r: 4 }}
-                                    strokeDasharray="4 2"
-                                />
-                            )}
-                            
+                            <Line
+                                type="monotone"
+                                dataKey="seguridad"
+                                stroke="#001A30"
+                                strokeWidth={2.5}
+                                name="Stock de Seguridad"
+                                dot={{ fill: '#001A30', strokeWidth: 1, r: 4 }}
+                                strokeDasharray="4 2"
+                            />
+
                             {/* Consumo */}
                             <Line
                                 type="monotone"
@@ -1291,7 +1581,7 @@ const Dashboard = () => {
                                 dot={{ fill: '#10B981', strokeWidth: 1, r: 4 }}
                                 strokeDasharray="3 3"
                             />
-                            
+
                             {/* Marcador de stock actual */}
                             {chartView === 'mensual' && monthlyData.length > 0 && (
                                 <ReferenceLine
@@ -1320,7 +1610,7 @@ const Dashboard = () => {
         positive: '#10B981', // verde
         negative: '#EF4444', // rojo
         neutral: '#6B7280'   // gris
-        } }: VariationChartProps) => (
+    } }: VariationChartProps) => (
         <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm mt-4">
             <h4 className="text-lg font-gotham-bold mb-4 flex items-center gap-2 text-[#001A30]">
                 <FaChartPie className="text-[#0074CF]" />
@@ -1512,7 +1802,7 @@ const Dashboard = () => {
                 <div className="flex items-center space-x-2">
                     <FaChartLine className="text-[#0074CF] text-2xl" />
                     <span className="text-xl font-gotham-bold text-[#001A30] text-center">
-                        Plannink<br/>2020 - 2025
+                        Plannink<br />2020 - 2025
                     </span>
                 </div>
                 <button
@@ -1522,7 +1812,7 @@ const Dashboard = () => {
                     <FaChevronLeft className="w-4 h-4" />
                 </button>
             </div>
-    
+
             <nav className="p-4">
                 <div className="space-y-1">
                     <a href="#" className="flex items-center space-x-3 p-2 rounded-lg bg-[#EDEDED] text-[#003268] font-gotham-medium">
@@ -1558,7 +1848,7 @@ const Dashboard = () => {
                         <span>Configuración</span>
                     </a>
                 </div>
-    
+
                 <div className="mt-8 pt-4 border-t border-gray-200">
                     <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
                         <FaSignOutAlt className="text-[#0074CF]" />
@@ -1631,8 +1921,8 @@ const Dashboard = () => {
                         <button
                             onClick={() => setActiveTab('general')}
                             className={`px-4 py-2 rounded-t-lg flex items-center gap-2 ${activeTab === 'general'
-                                    ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
+                                : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             <FaInfoCircle />
@@ -1641,8 +1931,8 @@ const Dashboard = () => {
                         <button
                             onClick={() => setActiveTab('grafico')}
                             className={`px-4 py-2 rounded-t-lg flex items-center gap-2 ${activeTab === 'grafico'
-                                    ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
+                                : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             <FaChartLine />
@@ -1651,8 +1941,8 @@ const Dashboard = () => {
                         <button
                             onClick={() => setActiveTab('historico')}
                             className={`px-4 py-2 rounded-t-lg flex items-center gap-2 ${activeTab === 'historico'
-                                    ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-sky-100 text-sky-700 border-b-2 border-sky-500'
+                                : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             <FaHistory />
@@ -1867,7 +2157,7 @@ const Dashboard = () => {
                                         <tbody>
                                             {producto.PROYECCIONES.map((proyeccion, index) => {
                                                 const isReposicionMonth = proyeccion.fecha_reposicion === producto.FECHA_REPOSICION;
-                                                
+
                                                 return (
                                                     <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
                                                         <td className="p-3 text-sm text-[#001A30] font-gotham-regular">
@@ -1915,9 +2205,9 @@ const Dashboard = () => {
                         </div>
                     )}
 
-                    {activeTab === 'grafico' && <InventoryChart 
-                        data={producto.PROYECCIONES} 
-                        stockActual={producto.STOCK_TOTAL} 
+                    {activeTab === 'grafico' && <InventoryChart
+                        data={producto.PROYECCIONES}
+                        stockActual={producto.STOCK_TOTAL}
                     />}
 
                     {activeTab === 'historico' && (
@@ -2008,9 +2298,9 @@ const Dashboard = () => {
                                                             <td key={mes} className="px-6 py-4 whitespace-nowrap text-center">
                                                                 {variation !== null ? (
                                                                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-gotham-medium ${variation > 0 ? 'bg-green-100 text-green-800' :
-                                                                                variation < 0 ? 'bg-red-100 text-red-800' :
-                                                                                        'bg-[#EDEDED] text-[#001A30]'
-                                                                            }`}>
+                                                                        variation < 0 ? 'bg-red-100 text-red-800' :
+                                                                            'bg-[#EDEDED] text-[#001A30]'
+                                                                        }`}>
                                                                         {variation > 0 ? '+' : ''}{formatNumber(variation, 1)}%
                                                                     </span>
                                                                 ) : (
@@ -2063,6 +2353,129 @@ const Dashboard = () => {
                         </button>
                     </div>
                 </div>
+            </div>
+        );
+    };
+
+    // Componente de Barra de Búsqueda
+    const SearchBar = () => {
+        const inputRef = useRef<HTMLInputElement>(null);
+        const [showSuggestions, setShowSuggestions] = useState(false);
+        const [activeSuggestion, setActiveSuggestion] = useState(-1);
+
+        // Efecto para mantener el foco en el input
+        useEffect(() => {
+            if (inputRef.current) {
+                inputRef.current.focus();
+            }
+        }, []);
+
+        // Obtener sugerencias basadas en el término de búsqueda
+        const getSuggestions = () => {
+            if (!searchTerm) return [];
+
+            return filteredPredictions
+                .filter(producto =>
+                    producto.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    producto.DESCRIPCION.toLowerCase().includes(searchTerm.toLowerCase())
+                )
+                .slice(0, 5); // Limitar a 5 sugerencias
+        };
+
+        const suggestions = getSuggestions();
+
+        // Manejar selección de sugerencia
+        const handleSuggestionClick = (producto: ProductoData) => {
+            setSearchTerm(producto.CODIGO); // O podrías usar producto.DESCRIPCION
+            setShowSuggestions(false);
+            inputRef.current?.focus();
+            handlePredict(producto.CODIGO); // Opcional: abrir detalles del producto seleccionado
+        };
+
+        // Manejar navegación con teclado
+        const handleKeyDown = (e: React.KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                setSearchTerm('');
+                setShowSuggestions(false);
+            } else if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                setActiveSuggestion(prev =>
+                    prev < suggestions.length - 1 ? prev + 1 : prev
+                );
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                setActiveSuggestion(prev =>
+                    prev > 0 ? prev - 1 : -1
+                );
+            } else if (e.key === 'Enter' && activeSuggestion >= 0) {
+                e.preventDefault();
+                handleSuggestionClick(suggestions[activeSuggestion]);
+            }
+        };
+
+        return (
+            <div className="relative w-full max-w-md mb-6">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <FaSearch className="text-gray-400" />
+                </div>
+                <input
+                    ref={inputRef}
+                    type="text"
+                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                    placeholder="Buscar por código o descripción..."
+                    value={searchTerm}
+                    onChange={(e) => {
+                        setSearchTerm(e.target.value);
+                        setShowSuggestions(true);
+                        setActiveSuggestion(-1);
+                    }}
+                    onKeyDown={handleKeyDown}
+                    onFocus={() => setShowSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
+                />
+                {searchTerm && (
+                    <button
+                        onClick={() => {
+                            setSearchTerm('');
+                            inputRef.current?.focus();
+                            setShowSuggestions(false);
+                        }}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                    >
+                        <FaTimes className="text-gray-400 hover:text-gray-600" />
+                    </button>
+                )}
+
+                {/* Panel de sugerencias */}
+                {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
+                        <ul>
+                            {suggestions.map((producto, index) => (
+                                <li
+                                    key={producto.CODIGO}
+                                    className={`px-4 py-2 hover:bg-blue-50 cursor-pointer ${index === activeSuggestion ? 'bg-blue-100' : ''
+                                        }`}
+                                    onClick={() => handleSuggestionClick(producto)}
+                                    onMouseEnter={() => setActiveSuggestion(index)}
+                                >
+                                    <div className="font-medium text-gray-900">
+                                        {highlightMatches(producto.CODIGO, searchTerm)}
+                                    </div>
+                                    <div className="text-sm text-gray-500 truncate">
+                                        {highlightMatches(producto.DESCRIPCION, searchTerm)}
+                                    </div>
+                                </li>
+                            ))}
+                        </ul>
+                    </div>
+                )}
+
+                {/* Mensaje cuando no hay sugerencias */}
+                {showSuggestions && searchTerm && suggestions.length === 0 && (
+                    <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-2 text-gray-500">
+                        No se encontraron productos coincidentes
+                    </div>
+                )}
             </div>
         );
     };
@@ -2125,15 +2538,20 @@ const Dashboard = () => {
                             />}
 
                             <div className="bg-white rounded-xl shadow-lg border border-slate-200">
-                                <div className="p-4 border-b border-slate-200 flex justify-between items-center bg-slate-50 rounded-t-xl">
-                                    <h2 className="text-xl font-semibold text-slate-700 flex items-center gap-2">
-                                        <FaBoxOpen className="text-sky-600" />
-                                        Productos Analizados ({allPredictions.length})
-                                        <span className="text-sm font-normal text-slate-500 ml-2">
-                                            Archivo: {currentExcel}
-                                        </span>
-                                    </h2>
-                                    <PaginationControls />
+                                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 rounded-t-xl">
+                                    <div className="w-full md:w-auto">
+                                        <h2 className="text-xl font-semibold text-slate-700 flex items-center gap-2">
+                                            <FaBoxOpen className="text-sky-600" />
+                                            Productos Analizados ({filteredPredictions.length})
+                                            <span className="text-sm font-normal text-slate-500 ml-2">
+                                                Archivo: {currentExcel}
+                                            </span>
+                                        </h2>
+                                    </div>
+                                    <div className="w-full md:w-auto flex flex-col md:flex-row gap-4 items-start md:items-center">
+                                        <SearchBar />
+                                        <PaginationControls />
+                                    </div>
                                 </div>
 
                                 <div className="overflow-x-auto">
@@ -2151,93 +2569,117 @@ const Dashboard = () => {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-100">
-                                            {currentPredictions.map((producto) => {
-                                                const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO_DISPONIBLES || 0);
-                                                const status = getStockStatus(
-                                                    stockTotal,
-                                                    producto.STOCK_SEGURIDAD,
-                                                    producto.PUNTO_REORDEN
-                                                );
-                                                const diasCobertura = calculateDaysOfCoverage(
-                                                    stockTotal,
-                                                    producto.CONSUMO_DIARIO
-                                                );
+                                            {currentPredictions.length > 0 ? (
+                                                currentPredictions.map((producto) => {
+                                                    const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO_DISPONIBLES || 0);
+                                                    const status = getStockStatus(
+                                                        stockTotal,
+                                                        producto.STOCK_SEGURIDAD,
+                                                        producto.PUNTO_REORDEN
+                                                    );
+                                                    const diasCobertura = calculateDaysOfCoverage(
+                                                        stockTotal,
+                                                        producto.CONSUMO_DIARIO
+                                                    );
 
-                                                return (
-                                                    <tr key={producto.CODIGO} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="px-4 py-3 font-medium text-slate-800">
-                                                            {producto.CODIGO}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">
-                                                            {producto.DESCRIPCION}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <span className="bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full text-sm inline-flex items-center gap-1 shadow-sm">
-                                                                <FaCube className="w-3.5 h-3.5" />
-                                                                {formatNumber(producto.UNIDADES_POR_CAJA)} unid.
-                                                            </span>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className={`px-3 py-1 rounded-full text-sm font-medium ${status === 'danger' ? 'bg-red-100 text-red-700' :
+                                                    return (
+                                                        <tr key={producto.CODIGO} className="hover:bg-slate-50 transition-colors">
+                                                            <td className="px-4 py-3 font-medium text-slate-800">
+                                                                {highlightMatches(producto.CODIGO, searchTerm)}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">
+                                                                {highlightMatches(producto.DESCRIPCION, searchTerm)}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <span className="bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full text-sm inline-flex items-center gap-1 shadow-sm">
+                                                                    <FaCube className="w-3.5 h-3.5" />
+                                                                    {formatNumber(producto.UNIDADES_POR_CAJA)} unid.
+                                                                </span>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${status === 'danger' ? 'bg-red-100 text-red-700' :
                                                                         status === 'warning' ? 'bg-amber-100 text-amber-700' :
                                                                             'bg-emerald-100 text-emerald-700'
-                                                                    } shadow-sm`}>
-                                                                    {formatNumber(stockTotal)} unid.
-                                                                </span>
-                                                                <div className="flex gap-2 text-xs text-slate-500 mt-1">
-                                                                    <span className="flex items-center">
-                                                                        <FaBox className="mr-1" />
-                                                                        {formatNumber(producto.STOCK_FISICO)}
+                                                                        } shadow-sm`}>
+                                                                        {formatNumber(stockTotal)} unid.
                                                                     </span>
-                                                                    {producto.UNIDADES_TRANSITO_DISPONIBLES > 0 && (
-                                                                        <span className="flex items-center text-blue-600">
-                                                                            <FaTruck className="mr-1" />
-                                                                            +{formatNumber(producto.UNIDADES_TRANSITO_DISPONIBLES)}
+                                                                    <div className="flex gap-2 text-xs text-slate-500 mt-1">
+                                                                        <span className="flex items-center">
+                                                                            <FaBox className="mr-1" />
+                                                                            {formatNumber(producto.STOCK_FISICO)}
                                                                         </span>
-                                                                    )}
-                                                                    <span>| {diasCobertura} días</span>
+                                                                        {producto.UNIDADES_TRANSITO_DISPONIBLES > 0 && (
+                                                                            <span className="flex items-center text-blue-600">
+                                                                                <FaTruck className="mr-1" />
+                                                                                +{formatNumber(producto.UNIDADES_TRANSITO_DISPONIBLES)}
+                                                                            </span>
+                                                                        )}
+                                                                        <span>| {diasCobertura} días</span>
+                                                                    </div>
                                                                 </div>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center text-sm text-gray-600">
-                                                            {formatNumber(producto.CONSUMO_PROMEDIO)}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <div className="flex flex-col items-center">
-                                                                <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs shadow-sm">
-                                                                    {formatNumber(producto.PUNTO_REORDEN)}
-                                                                </span>
-                                                            </div>
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            {producto.CAJAS_A_PEDIR > 0 ? (
-                                                                <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium shadow-sm">
-                                                                    {producto.CAJAS_A_PEDIR} cajas
-                                                                </span>
-                                                            ) : (
-                                                                <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs shadow-sm">
-                                                                    OK
-                                                                </span>
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3 text-center">
-                                                            <button
-                                                                onClick={() => handlePredict(producto.CODIGO)}
-                                                                className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
-                                                                disabled={loading}
-                                                            >
-                                                                {loading && selectedPrediction?.data.CODIGO === producto.CODIGO ? (
-                                                                    <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center text-sm text-gray-600">
+                                                                {formatNumber(producto.CONSUMO_PROMEDIO)}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <div className="flex flex-col items-center">
+                                                                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs shadow-sm">
+                                                                        {formatNumber(producto.PUNTO_REORDEN)}
+                                                                    </span>
+                                                                </div>
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                {producto.CAJAS_A_PEDIR > 0 ? (
+                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium shadow-sm">
+                                                                        {producto.CAJAS_A_PEDIR} cajas
+                                                                    </span>
                                                                 ) : (
-                                                                    <FiAlertTriangle className="w-4 h-4" />
+                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs shadow-sm">
+                                                                        OK
+                                                                    </span>
                                                                 )}
-                                                                Ver Análisis
-                                                            </button>
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-center">
+                                                                <button
+                                                                    onClick={() => handlePredict(producto.CODIGO)}
+                                                                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+                                                                    disabled={loading}
+                                                                >
+                                                                    {loading && selectedPrediction?.data.CODIGO === producto.CODIGO ? (
+                                                                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                                                    ) : (
+                                                                        <FiAlertTriangle className="w-4 h-4" />
+                                                                    )}
+                                                                    Ver Análisis
+                                                                </button>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })
+                                            ) : (
+                                                <tr>
+                                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                                                        {searchTerm ? (
+                                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                                <FaSearch className="text-gray-400 text-2xl" />
+                                                                <span>No se encontraron productos que coincidan con <strong>"{searchTerm}"</strong></span>
+                                                                <button
+                                                                    onClick={() => setSearchTerm('')}
+                                                                    className="mt-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
+                                                                >
+                                                                    Limpiar búsqueda
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex flex-col items-center justify-center gap-2">
+                                                                <FaBoxOpen className="text-gray-400 text-2xl" />
+                                                                <span>No hay productos disponibles</span>
+                                                            </div>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            )}
                                         </tbody>
                                     </table>
                                 </div>
