@@ -38,6 +38,12 @@ app.use(morgan('combined', { stream: logger.stream }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
+app.use('/api/auth', authRoutes);
+
+app.get('/api/protected', verifyToken, (req, res) => {
+    res.json({ message: 'Ruta protegida', user: req.user });
+});
+
 // 4. Servir archivos estáticos
 app.use('/uploads', express.static(PATHS.UPLOADS_DIR, {
     maxAge: '1d',
@@ -62,6 +68,8 @@ const healthResponse = (req, res) => {
         port: PORT
     });
 };
+
+app.use('/api/alertas', alertRoutes);
 
 app.get('/health', healthResponse);
 app.get('/api/health', healthResponse); // Agregando el endpoint en la ruta documentada
