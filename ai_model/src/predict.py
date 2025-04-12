@@ -222,13 +222,13 @@ def calcular_predicciones(df, prophet_predictions=None):
         df["Proyec de  Conss"] = pd.to_numeric(df.get("Proyec de  Conss", 0), errors='coerce').fillna(0)
         df["PROM CONS+Proyec"] = df["PROM CONSU"] + df["Proyec de  Conss"]
         df["DIARIO"] = df["PROM CONS+Proyec"] / 22
-        df["SS"] = df["DIARIO"] * 19  # Stock de seguridad (19 días)
+        df["SS"] = df["DIARIO"] * 19
         
-        # DIFERENCIACIÓN CLAVE: Ambos métodos de cálculo
-        df["STOCK MINIMO (Prom + SS)"] = df["PROM CONS+Proyec"] + df["SS"]  # Método tradicional
-        df["PUNTO DE REORDEN (44 días)"] = df["DIARIO"] * 44  # Nuevo método
+        # Métodos de cálculo
+        df["STOCK MINIMO (Prom + SS)"] = df["PROM CONS+Proyec"] + df["SS"]
+        df["PUNTO DE REORDEN (44 días)"] = df["DIARIO"] * 44
         
-        # Cálculo de pedidos usando PUNTO DE REORDEN (44 días)
+        # Cálculo de pedidos
         df["DEFICIT"] = np.maximum(df["PUNTO DE REORDEN (44 días)"] - df["STOCK  TOTAL"], 0)
         df["CAJAS NECESARIAS"] = df["DEFICIT"] / df["UNID/CAJA"]
         df["CAJAS A PEDIR"] = np.ceil(df["CAJAS NECESARIAS"]).astype(int)
@@ -244,36 +244,37 @@ def calcular_predicciones(df, prophet_predictions=None):
             proyecciones = []
             stock_actual = row["STOCK  TOTAL"]
             
-            # Cálculo de fecha de reposición (modificado según solicitud)
-            lead_time_days = 15  # Tiempo de entrega en días
+            # Configuración de parámetros
+            lead_time_days = 60
             fecha_actual = datetime(2025, 3, 1)
-            max_dias_reposicion = 30  # Nuevo parámetro: máximo días para reposición
+            max_dias_reposicion = 30
             
             if row["DIARIO"] > 0:
-                # Cálculo de días hasta punto de reorden
-                dias_hasta_reorden = max((row["PUNTO DE REORDEN (44 días)"] - row["STOCK  TOTAL"]) / row["DIARIO"], 0)
+                # Calcular frecuencia óptima de reposición
+                frecuencia_reposicion = min(
+                    row["PUNTO DE REORDEN (44 días)"] / row["DIARIO"],
+                    max_dias_reposicion
+                )
                 
-                # Aplicar límite máximo
-                dias_hasta_reorden = min(dias_hasta_reorden, max_dias_reposicion)
-                
-                # Fecha de reposición considerando lead time
-                fecha_reposicion = fecha_actual + timedelta(days=max(dias_hasta_reorden - lead_time_days, 0))
+                # Calcular fecha de reposición
+                dias_hasta_reposicion = max(frecuencia_reposicion - lead_time_days, 0)
+                fecha_reposicion = fecha_actual + timedelta(days=dias_hasta_reposicion)
                 fecha_reposicion_str = fecha_reposicion.strftime("%Y-%m-%d")
                 
-                # Cálculo de tiempo de cobertura inicial (días de stock actual)
-                tiempo_cobertura = min(row["STOCK  TOTAL"] / row["DIARIO"], max_dias_reposicion)
-                
-                # Frecuencia sugerida de reposición (basada en consumo histórico)
-                frecuencia_reposicion = min(row["PUNTO DE REORDEN (44 días)"] / row["DIARIO"], max_dias_reposicion)
+                # Calcular tiempo de cobertura
+                tiempo_cobertura = min(
+                    row["STOCK  TOTAL"] / row["DIARIO"],
+                    max_dias_reposicion
+                )
             else:
                 fecha_reposicion_str = "No aplica"
                 tiempo_cobertura = 0
                 frecuencia_reposicion = 0
             
-            for mes in range(1, 7):  # 6 meses de proyección
+            for mes in range(1, 7):
                 fecha = datetime(2025, 3, 1) + timedelta(days=mes * 30)
                 
-                # Determinar consumo mensual usando Prophet si está disponible
+                # Determinar consumo mensual
                 if prophet_predictions and row["CODIGO"] in prophet_predictions:
                     pred_date = datetime(2025, 2 + mes, 15)
                     prophet_pred = next((p for p in prophet_predictions[row["CODIGO"]] 
@@ -286,7 +287,7 @@ def calcular_predicciones(df, prophet_predictions=None):
                 
                 diario = consumo / 22
                 ss_mes = diario * 19
-                stock_minimo = consumo + (diario * 19)
+                stock_minimo = consumo + ss_mes
                 punto_reorden_mes = diario * 44
                 
                 stock_despues_consumo = max(stock_actual - consumo, 0)
@@ -295,30 +296,27 @@ def calcular_predicciones(df, prophet_predictions=None):
                 unidades_pedir = cajas_pedir * row["UNID/CAJA"]
                 stock_proyectado = stock_despues_consumo + unidades_pedir
                 
-                # Nuevos cálculos para este mes
+                # Cálculos para este mes
                 if diario > 0:
                     tiempo_cob_mes = min(
-                        max(stock_proyectado - ss_mes, 0) / diario,  # Aseguramos no negativo
+                        max(stock_proyectado - ss_mes, 0) / diario,
                         max_dias_reposicion
                     )
                     fecha_rep_mes = (fecha + timedelta(
                         days=max(tiempo_cob_mes - lead_time_days, 0)
                     )).strftime("%Y-%m-%d")
-                    frecuencia_rep_mes = min(
-                        punto_reorden_mes / diario,
-                        max_dias_reposicion
-                    )
+                    frecuencia_rep_mes = frecuencia_reposicion
                 else:
                     fecha_rep_mes = "No aplica"
                     tiempo_cob_mes = 0
-                    frecuencia_rep_mes = 0           
+                    frecuencia_rep_mes = 0
                 
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[fecha.month]}-{fecha.year}",
                     "stock_proyectado": round(stock_proyectado, 2),
                     "consumo_mensual": round(consumo, 2),
                     "consumo_diario": round(diario, 2),
-                    "stock_seguridad": round(diario * 19, 2),
+                    "stock_seguridad": round(ss_mes, 2),
                     "stock_minimo": round(stock_minimo, 2),
                     "punto_reorden": round(punto_reorden_mes, 2),
                     "deficit": round(deficit, 2),
@@ -327,7 +325,9 @@ def calcular_predicciones(df, prophet_predictions=None):
                     "alerta_stock": bool(stock_despues_consumo < punto_reorden_mes),
                     "fecha_reposicion": fecha_rep_mes,
                     "tiempo_cobertura": round(tiempo_cob_mes, 2),
-                    "frecuencia_reposicion": round(frecuencia_rep_mes, 2)                    
+                    "frecuencia_reposicion": round(frecuencia_rep_mes, 2),
+                    "unidades_en_transito": 0,  # Inicializado en 0 para ser actualizado
+                    "pedidos_pendientes": {}  # Para ser llenado dinámicamente
                 }
                 
                 proyecciones.append(info_mes)
@@ -339,49 +339,36 @@ def calcular_predicciones(df, prophet_predictions=None):
                 for col in df.columns if col.startswith("CONS ") and len(col.split()) >= 3
             }
             
-            # Información del producto (manteniendo estructura original)
+            # Información del producto
             producto_info = {
-                # Identificación del producto
                 "CODIGO": str(row["CODIGO"]),
                 "DESCRIPCION": str(row["DESCRIPCION"]),
-                
-                # Unidades y stock
                 "UNIDADES_POR_CAJA": float(row["UNID/CAJA"]),
-                "STOCK_FISICO": float(row["STOCK  TOTAL"]),  # Stock físico real
-                "UNIDADES_TRANSITO_DISPONIBLES": max(float(args.transito), 0),  # Nunca negativo
-                "STOCK_TOTAL": float(row["STOCK  TOTAL"]),  # Stock físico + transito asignado
-                
-                # Cálculos de consumo
+                "STOCK_FISICO": float(row["STOCK  TOTAL"]),
+                "UNIDADES_TRANSITO": 0.0,
+                "STOCK_TOTAL": float(row["STOCK  TOTAL"]),
                 "CONSUMO_PROMEDIO": float(row["PROM CONSU"]),
                 "CONSUMO_PROYECTADO": float(row["Proyec de  Conss"]),
                 "CONSUMO_TOTAL": float(row["PROM CONS+Proyec"]),
                 "CONSUMO_DIARIO": float(row["DIARIO"]),
-                
-                # Puntos de reorden
                 "STOCK_SEGURIDAD": float(row["SS"]),
                 "STOCK_MINIMO": float(row["STOCK MINIMO (Prom + SS)"]),
                 "PUNTO_REORDEN": float(row["PUNTO DE REORDEN (44 días)"]),
-                
-                # Indicadores actualizables
                 "DEFICIT": max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0),
                 "CAJAS_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))),
                 "UNIDADES_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))) * float(row["UNID/CAJA"]),
                 "FECHA_REPOSICION": fecha_reposicion_str,
                 "DIAS_COBERTURA": round(tiempo_cobertura, 2),
-                
-                # Datos históricos
+                "FRECUENCIA_REPOSICION": round(frecuencia_reposicion, 2),
                 "HISTORICO_CONSUMOS": consumos_historicos,
-                
-                # Proyecciones futuras
                 "PROYECCIONES": proyecciones,
-                
-                # Configuración para recálculos
                 "CONFIGURACION": {
                     "DIAS_STOCK_SEGURIDAD": 19,
                     "DIAS_PUNTO_REORDEN": 44,
-                    "LEAD_TIME_REPOSICION": 15,
+                    "LEAD_TIME_REPOSICION": 60,
                     "DIAS_MAX_REPOSICION": 30,
-                    "DIAS_LABORALES_MES": 22
+                    "DIAS_LABORALES_MES": 22,
+                    "VERSION_MODELO": "2.2-dynamic-transit"
                 }
             }
             
