@@ -7,6 +7,9 @@ import { PATHS } from './config/constants.js';
 import predictionsRouter from './routes/predictions.routes.js';
 import { handleHttpError } from './utils/errorHandler.js';
 import { logger } from './utils/logger.js';
+import alertRoutes from './routes/alert.routes.js';
+import authRoutes from './routes/auth.routes.js';
+import verifyToken from './middlewares/auth.middleware.js';
 
 // Configuración del puerto
 const PORT = process.env.PORT || 3500;
