@@ -101,70 +101,263 @@ class PythonService {
         }
     }
 
+    async applyTransitUnits(productCode, units, options = {}) {
+        try {
+            const { 
+                recalculateProjections = true,
+                updateFrequency = true,
+                persistChanges = true
+            } = options;
+
+            // 1. Obtener predicciones actuales
+            const predictions = await this.getLatestPredictions();
+            
+            // 2. Encontrar el producto
+            const productIndex = predictions.findIndex(p => p.CODIGO === productCode);
+            if (productIndex === -1) {
+                throw new Error(`Producto ${productCode} no encontrado`);
+            }
+            
+            // 3. Clonar profundamente el producto
+            const productToUpdate = JSON.parse(JSON.stringify(predictions[productIndex]));
+            
+            // 4. Aplicar unidades en tránsito
+            productToUpdate.UNIDADES_TRANSITO = parseFloat(units) || 0;
+            productToUpdate.STOCK_TOTAL = productToUpdate.STOCK_FISICO + productToUpdate.UNIDADES_TRANSITO;
+
+            // 5. Recalcular valores inmediatos
+            this._recalculateProductValues(productToUpdate);
+
+            // 6. Recalcular proyecciones si se solicita
+            if (recalculateProjections) {
+                this._recalculateProjections(productToUpdate);
+            }
+
+            // 7. Actualizar frecuencia de reposición si se solicita
+            if (updateFrequency && productToUpdate.CONSUMO_DIARIO > 0) {
+                productToUpdate.FRECUENCIA_REPOSICION = 
+                    Math.min(
+                        productToUpdate.PUNTO_REORDEN / productToUpdate.CONSUMO_DIARIO,
+                        productToUpdate.CONFIGURACION.DIAS_MAX_REPOSICION
+                    );
+            }
+
+            // 8. Actualizar y guardar si se solicita
+            if (persistChanges) {
+                const updatedPredictions = [...predictions];
+                updatedPredictions[productIndex] = productToUpdate;
+                await this._savePredictions(updatedPredictions);
+            }
+            
+            return productToUpdate;
+        } catch (error) {
+            logger.error(`Error aplicando unidades en tránsito: ${error.message}`);
+            throw error;
+        }
+    }
+
     _recalculateProductValues(product) {
-        // 1. Recalcular déficit y pedidos
-        product.DEFICIT = Math.max(product.PUNTO_REORDEN - product.STOCK_TOTAL, 0);
+        // 1. Calcular punto de reorden efectivo (considerando unidades en tránsito)
+        const effectivePuntoReorden = Math.max(
+            product.PUNTO_REORDEN - product.UNIDADES_TRANSITO,
+            product.STOCK_SEGURIDAD // Nunca pedir por debajo del stock de seguridad
+        );
+        
+        // 2. Recalcular déficit y pedidos
+        product.DEFICIT = Math.max(effectivePuntoReorden - product.STOCK_FISICO, 0);
         
         if (product.UNIDADES_POR_CAJA > 0) {
-            product.CAJAS_A_PEDIR = Math.ceil(product.DEFICIT / product.UNIDADES_POR_CAJA);
-            // Actualizar el valor existente de UNIDADES_A_PEDIR en lugar de crear uno nuevo
-            if (product.hasOwnProperty('UNIDADES_A_PEDIR')) {
-                product.UNIDADES_A_PEDIR = product.CAJAS_A_PEDIR * product.UNIDADES_POR_CAJA;
-            }
+            product.CAJAS_A_PEDIR = Math.ceil(
+                product.DEFICIT / product.UNIDADES_POR_CAJA
+            );
+            product.UNIDADES_A_PEDIR = product.CAJAS_A_PEDIR * product.UNIDADES_POR_CAJA;
+        } else {
+            product.CAJAS_A_PEDIR = 0;
+            product.UNIDADES_A_PEDIR = 0;
         }
     
-        // 2. Recalcular tiempos de cobertura
+        // 3. Recalcular tiempos de cobertura
         if (product.CONSUMO_DIARIO > 0) {
             product.DIAS_COBERTURA = Math.min(
                 product.STOCK_TOTAL / product.CONSUMO_DIARIO,
                 product.CONFIGURACION.DIAS_MAX_REPOSICION
             );
             
-            // Recalcular fecha de reposición
+            // Recalcular fecha de reposición considerando lead time
             const diasHastaReorden = Math.max(
-                (product.PUNTO_REORDEN - product.STOCK_TOTAL) / product.CONSUMO_DIARIO,
+                (effectivePuntoReorden - product.STOCK_FISICO) / product.CONSUMO_DIARIO,
                 0
             );
             
             const fechaReposicion = new Date();
-            fechaReposicion.setDate(fechaReposicion.getDate() + 
-                Math.max(diasHastaReorden - product.CONFIGURACION.LEAD_TIME_REPOSICION, 0));
+            fechaReposicion.setDate(
+                fechaReposicion.getDate() + 
+                Math.max(diasHastaReorden - product.CONFIGURACION.LEAD_TIME_REPOSICION, 0)
+            );
             
             product.FECHA_REPOSICION = fechaReposicion.toISOString().split('T')[0];
+        } else {
+            product.DIAS_COBERTURA = 0;
+            product.FECHA_REPOSICION = "No aplica";
         }
     }
 
-    async applyTransitUnits(productCode, units) {
+    _recalculateProjections(product) {
+        const leadTime = product.CONFIGURACION.LEAD_TIME_REPOSICION;
+        
+        // Variables de seguimiento
+        let currentStock = product.STOCK_FISICO;
+        let transitUnits = product.UNIDADES_TRANSITO;
+        let pendingOrders = {};
+        
+        product.PROYECCIONES.forEach((proj, index) => {
+            try {
+                const monthNumber = index + 1; // 1=Marzo, 2=Abril, etc.
+                
+                // 1. Aplicar unidades en tránsito al primer mes
+                if (monthNumber === 1) {
+                    currentStock += transitUnits;
+                    transitUnits = 0;
+                }
+                
+                // 2. Parsear el mes de la proyección
+                const [monthStr, yearStr] = proj.mes.split('-');
+                const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+                const monthIndex = monthNames.findIndex(m => m === monthStr);
+                
+                if (monthIndex === -1) throw new Error(`Nombre de mes inválido: ${monthStr}`);
+                
+                const year = parseInt(yearStr, 10);
+                if (isNaN(year)) throw new Error(`Año inválido: ${yearStr}`);
+                
+                // 3. Aplicar pedidos pendientes que llegan este mes
+                const arrivalMonthKey = `${monthStr}-${yearStr}`;
+                if (pendingOrders[arrivalMonthKey]) {
+                    currentStock += pendingOrders[arrivalMonthKey];
+                    delete pendingOrders[arrivalMonthKey];
+                }
+                
+                // 4. Calcular nuevo stock después del consumo
+                const stockAfterConsumption = Math.max(currentStock - proj.consumo_mensual, 0);
+                
+                // 5. Calcular nuevo déficit (considerando unidades en tránsito)
+                const effectivePuntoReorden = Math.max(
+                    proj.punto_reorden - transitUnits,
+                    proj.stock_seguridad
+                );
+                const newDeficit = Math.max(effectivePuntoReorden - stockAfterConsumption, 0);
+                const newUnitsToOrder = Math.ceil(newDeficit / product.UNIDADES_POR_CAJA) * product.UNIDADES_POR_CAJA;
+                
+                // 6. Programar llegada del pedido (60 días después = 2 meses)
+                if (newUnitsToOrder > 0) {
+                    const arrivalMonthNum = monthNumber + 2;
+                    if (arrivalMonthNum <= 8) { // Solo hasta agosto 2025
+                        const arrivalMonthIndex = (monthIndex + 2) % 12;
+                        const arrivalYear = year + Math.floor((monthIndex + 2) / 12);
+                        const arrivalMonthKey = `${monthNames[arrivalMonthIndex]}-${arrivalYear}`;
+                        pendingOrders[arrivalMonthKey] = (pendingOrders[arrivalMonthKey] || 0) + newUnitsToOrder;
+                    }
+                }
+                
+                // 7. Actualizar valores de la proyección
+                proj.stock_proyectado = stockAfterConsumption;
+                proj.deficit = newDeficit;
+                proj.unidades_a_pedir = newUnitsToOrder;
+                proj.cajas_a_pedir = Math.ceil(newDeficit / product.UNIDADES_POR_CAJA);
+                proj.alerta_stock = stockAfterConsumption < effectivePuntoReorden;
+                proj.unidades_en_transito = transitUnits;
+                proj.pedidos_pendientes = { ...pendingOrders };
+                
+                // 8. Calcular tiempo de cobertura para este mes
+                if (proj.consumo_diario > 0) {
+                    proj.tiempo_cobertura = Math.min(
+                        Math.max(stockAfterConsumption - proj.stock_seguridad, 0) / proj.consumo_diario,
+                        product.CONFIGURACION.DIAS_MAX_REPOSICION
+                    );
+                    
+                    // Calcular próxima fecha de reposición
+                    const diasHastaReposicion = Math.max(
+                        product.FRECUENCIA_REPOSICION - leadTime,
+                        0
+                    );
+                    
+                    const fechaReposicion = new Date(year, monthIndex, 15);
+                    fechaReposicion.setDate(fechaReposicion.getDate() + diasHastaReposicion);
+                    proj.fecha_reposicion = fechaReposicion.toISOString().split('T')[0];
+                } else {
+                    proj.tiempo_cobertura = 0;
+                    proj.fecha_reposicion = "No aplica";
+                }
+                
+                // 9. Preparar para siguiente mes
+                currentStock = stockAfterConsumption;
+            } catch (error) {
+                logger.error(`Error procesando proyección para ${proj.mes}: ${error.message}`);
+                throw error;
+            }
+        });
+    }
+
+    async _savePredictions(predictions) {
         try {
-            // 1. Obtener las predicciones actuales
+            await fs.writeFile(
+                this.predictionsFile,
+                JSON.stringify(predictions, null, 2),
+                'utf-8'
+            );
+            logger.info('Predicciones actualizadas correctamente');
+        } catch (error) {
+            logger.error(`Error guardando predicciones: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async getProductByCode(productCode) {
+        try {
+            const predictions = await this.getLatestPredictions();
+            const product = predictions.find(p => p.CODIGO === productCode);
+            
+            if (!product) {
+                throw new Error(`Producto ${productCode} no encontrado`);
+            }
+            
+            return product;
+        } catch (error) {
+            logger.error(`Error obteniendo producto: ${error.message}`);
+            throw error;
+        }
+    }
+
+    async updateProduct(productCode, updates) {
+        try {
+            // 1. Obtener predicciones actuales
             const predictions = await this.getLatestPredictions();
             
-            // 2. Encontrar y actualizar el producto específico
+            // 2. Encontrar el producto
             const productIndex = predictions.findIndex(p => p.CODIGO === productCode);
             if (productIndex === -1) {
                 throw new Error(`Producto ${productCode} no encontrado`);
             }
-    
-            // 3. Clonar el producto para evitar mutaciones
-            const productToUpdate = JSON.parse(JSON.stringify(predictions[productIndex]));
             
-            // 4. Aplicar unidades en tránsito (sin validar disponibilidad)
-            productToUpdate.UNIDADES_TRANSITO_DISPONIBLES = units;
-            productToUpdate.STOCK_TOTAL = productToUpdate.STOCK_FISICO + units;
-
-            // 5. Recalcular valores dependientes
-            this._recalculateProductValues(productToUpdate);
-    
-            // 6. Actualizar el array de predicciones
+            // 3. Aplicar actualizaciones
+            const updatedProduct = { 
+                ...predictions[productIndex], 
+                ...updates,
+                STOCK_TOTAL: predictions[productIndex].STOCK_FISICO + (updates.UNIDADES_TRANSITO || 0)
+            };
+            
+            // 4. Recalcular valores
+            this._recalculateProductValues(updatedProduct);
+            this._recalculateProjections(updatedProduct);
+            
+            // 5. Actualizar y guardar
             const updatedPredictions = [...predictions];
-            updatedPredictions[productIndex] = productToUpdate;
-    
-            // 7. Guardar los cambios
-            await fs.writeFile(this.predictionsFile, JSON.stringify(updatedPredictions, null, 2));
+            updatedPredictions[productIndex] = updatedProduct;
+            await this._savePredictions(updatedPredictions);
             
-            return updatedPredictions;
+            return updatedProduct;
         } catch (error) {
-            logger.error(`Error aplicando unidades en tránsito: ${error.message}`);
+            logger.error(`Error actualizando producto: ${error.message}`);
             throw error;
         }
     }

@@ -11,15 +11,26 @@ import {
     FaShieldAlt,
     FaTable,
     FaFileExport,
-    FaSearch
+    FaSearch,
+    FaExclamation,
+    FaCheck,
+    FaClock,
+    FaLightbulb,
+    FaLock,
+    FaSpinner,
+    FaPhone
 } from 'react-icons/fa';
-import { FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
+import { FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Area, ReferenceLine } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { motion } from 'framer-motion';
 import { Chart, LinearScale, CategoryScale, LineController, PointElement, LineElement, Title } from 'chart.js';
+import AlertConfig from './AlertConfig';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
+
 Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
     interface jsPDF {
@@ -49,6 +60,8 @@ interface Proyeccion {
     fecha_reposicion: string;
     tiempo_cobertura: number;
     frecuencia_reposicion: number;
+    unidades_en_transito: number;  // Nuevo campo
+    pedidos_pendientes: Record<string, number>;  // Nuevo campo
 }
 
 interface ProductoData {
@@ -56,7 +69,8 @@ interface ProductoData {
     DESCRIPCION: string;
     UNIDADES_POR_CAJA: number;
     STOCK_FISICO: number;
-    UNIDADES_TRANSITO_DISPONIBLES: number;
+    UNIDADES_TRANSITO: number;
+    FRECUENCIA_REPOSICION?: number;  // Nuevo campo
     STOCK_TOTAL: number;
     CONSUMO_PROMEDIO: number;
     CONSUMO_PROYECTADO: number;
@@ -66,6 +80,7 @@ interface ProductoData {
     STOCK_MINIMO: number;
     PUNTO_REORDEN: number;
     DEFICIT: number;
+    alerta_stock: boolean;
     CAJAS_A_PEDIR: number;
     UNIDADES_A_PEDIR: number;
     FECHA_REPOSICION: string;
@@ -75,6 +90,7 @@ interface ProductoData {
     CONFIGURACION: {
         DIAS_STOCK_SEGURIDAD: number;
         DIAS_PUNTO_REORDEN: number;
+        VERSION_MODELO: string;  // Nuevo campo
         LEAD_TIME_REPOSICION: number;
         DIAS_MAX_REPOSICION: number;
         DIAS_LABORALES_MES: number;
@@ -126,6 +142,12 @@ const Dashboard = () => {
     const [chartView, setChartView] = useState<'semanal' | 'mensual'>('semanal');
     const [sidebarOpen, setSidebarOpen] = useState(true);
     const searchInputRef = useRef<HTMLInputElement>(null);
+    //Login
+    const [isAuthenticated, setIsAuthenticated] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
+    const [showRegister, setShowRegister] = useState(false);
+    const [showLogin, setShowLogin] = useState(true);  // El login es visible por defecto
+
 
     // Refs
     const chartRef = useRef<HTMLDivElement>(null);
@@ -175,6 +197,24 @@ const Dashboard = () => {
         };
         fetchData();
     }, []);
+
+    // Comprobar autenticación al cargar
+    useEffect(() => {
+        const token = localStorage.getItem('token');
+        if (token) {
+            setIsAuthenticated(true);
+        }
+        setIsLoading(false);
+    }, []);
+
+    // Manejadores para autenticación
+    const handleSuccessfulLogin = () => {
+        setIsAuthenticated(true);
+    };
+
+    const handleSuccessfulRegister = () => {
+        setIsAuthenticated(true);
+    };
 
     // Funciones de utilidad
     const calcularFechaReposicion = (diasCobertura: number, fechaInicio: Date = new Date()) => {
@@ -361,17 +401,16 @@ const Dashboard = () => {
             );
 
             let statusMessage = '';
-            let statusColor: [number, number, number] = oceanBlue;
-
+            let statusColor: [number, number, number];
             if (status === 'danger') {
                 statusMessage = 'NIVEL CRÍTICO';
-                statusColor = dangerRed;
+                statusColor = [0, 50, 104]; // Primary Blue: #003268
             } else if (status === 'warning') {
                 statusMessage = 'NIVEL BAJO';
-                statusColor = warningYellow;
+                statusColor = [0, 116, 207]; // Ocean Blue: #0074CF
             } else {
                 statusMessage = 'NIVEL ÓPTIMO';
-                statusColor = successGreen;
+                statusColor = [0, 176, 240]; // Cian: #00B0F0
             }
 
             // Contenedor centrado para el estado
@@ -486,7 +525,7 @@ const Dashboard = () => {
 
             addCompactText(
                 `El producto ${selectedPrediction.data.CODIGO} muestra un stock total de ${selectedPrediction.data.STOCK_TOTAL} unidades ` +
-                `(${selectedPrediction.data.STOCK_FISICO} físicas + ${selectedPrediction.data.UNIDADES_TRANSITO_DISPONIBLES} en tránsito), ` +
+                `(${selectedPrediction.data.STOCK_FISICO} físicas + ${selectedPrediction.data.UNIDADES_TRANSITO} en tránsito), ` +
                 `con una cobertura de ${selectedPrediction.data.DIAS_COBERTURA} días frente a los ${selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD} ` +
                 `días recomendados, situándose en un nivel ${selectedPrediction.data.DIAS_COBERTURA < selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD ? 'CRÍTICO' : 'DE ALERTA'}.`
             );
@@ -548,14 +587,14 @@ const Dashboard = () => {
             currentY += 2;
 
             addCompactText(
-                `El comportamiento actual del inventario sugiere que ${selectedPrediction.data.DIAS_COBERTURA < 15 ? 'se requiere intervención ' + 
-                'inmediata para evitar rupturas de stock' : 'existe un margen de seguridad que permite ' + 
+                `El comportamiento actual del inventario sugiere que ${selectedPrediction.data.DIAS_COBERTURA < 15 ? 'se requiere intervención ' +
+                    'inmediata para evitar rupturas de stock' : 'existe un margen de seguridad que permite ' +
                 'acciones planificadas'}. La ${variabilidad > 25 ? 'alta' : 'moderada'} variabilidad ` +
-                `del consumo (${variabilidad.toFixed(1)}%) justifica adoptar una estrategia ${variabilidad > 25 ? 
-                '"just-in-case" con inventarios de seguridad más conservadores' : '"just-in-time" con ' + 
-                'revisiones frecuentes'}. El lead time actual de ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} ` +
-                `días ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION > 10 ? 'debería reducirse para mejorar ' + 
-                'la respuesta' : 'es adecuado para el patrón de consumo actual'}.`
+                `del consumo (${variabilidad.toFixed(1)}%) justifica adoptar una estrategia ${variabilidad > 25 ?
+                    '"just-in-case" con inventarios de seguridad más conservadores' : '"just-in-time" con ' +
+                    'revisiones frecuentes'}. El lead time actual de ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} ` +
+                `días ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION > 10 ? 'debería reducirse para mejorar ' +
+                    'la respuesta' : 'es adecuado para el patrón de consumo actual'}.`
             );
             currentY += 10;
 
@@ -854,7 +893,7 @@ const Dashboard = () => {
             });
 
             // Tabla centrada con márgenes
-            const tableWidth = 150;
+            const tableWidth = 170;
             const tableMarginLeft = (pageWidth - tableWidth) / 2;
 
             autoTable(pdf, {
@@ -886,13 +925,13 @@ const Dashboard = () => {
                 },
                 columnStyles: {
                     0: { cellWidth: 25, halign: 'left' },
-                    1: { cellWidth: 18 },
-                    2: { cellWidth: 18 },
-                    3: { cellWidth: 18 },
+                    1: { cellWidth: 20 }, // Aumentado
+                    2: { cellWidth: 20 }, // Aumentado
+                    3: { cellWidth: 20 }, // Aumentado
                     4: { cellWidth: 15 },
                     5: { cellWidth: 30, halign: 'left' },
                     6: {
-                        cellWidth: 20,
+                        cellWidth: 24,
                         halign: 'center',
                         fontStyle: 'bold'
                     }
@@ -905,19 +944,16 @@ const Dashboard = () => {
                     overflow: 'linebreak'
                 },
                 didParseCell: (data: any) => {
-                    // Aplicar estilos condicionales a la columna Estado
+                    // Solo aplicar estilo a la columna "Estado" (índice 6)
                     if (data.section === 'body' && data.column.index === 6) {
                         const isAlert = data.cell.raw === 'ALERTA';
-                        data.cell.styles.fillColor = isAlert ? dangerRed : successGreen;
-                        data.cell.styles.textColor = isAlert ? [255, 255, 255] : [0, 0, 0];
-                    }
+                        
+                        // Colores corporativos
+                        const primaryBlue = [0, 50, 104];    // #003268
+                        const smoke = [237, 237, 237];       // #EDEDED
 
-                    // Resaltar filas completas con alerta
-                    if (data.section === 'body' && data.column.index === 0 && data.row.cells[6].raw === 'ALERTA') {
-                        Object.keys(data.row.cells).forEach((key) => {
-                            const cell = data.row.cells[key];
-                            cell.styles.fillColor = [255, 230, 230];
-                        });
+                        data.cell.styles.fillColor = isAlert ? primaryBlue : smoke;
+                        data.cell.styles.textColor = isAlert ? [255, 255, 255] : [0, 0, 0];
                     }
                 }
             });
@@ -1696,7 +1732,11 @@ const Dashboard = () => {
 
                 const response = await axios.post(
                     `${API_URL}/predictions/${codigo}/transit`,
-                    { units: Number(transitUnits) }
+                    {
+                        units: Number(transitUnits),
+                        recalculateProjections: true,
+                        updateFrequency: true
+                    }
                 );
 
                 if (response.data.success) {
@@ -1737,7 +1777,7 @@ const Dashboard = () => {
                     <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
                         <div className="text-xs text-blue-600 mb-1">Unidades en Tránsito Actuales</div>
                         <div className="text-xl font-bold text-blue-800">
-                            {selectedPrediction?.data.UNIDADES_TRANSITO_DISPONIBLES || 0} unidades
+                            {selectedPrediction?.data.UNIDADES_TRANSITO || 0} unidades
                         </div>
                     </div>
 
@@ -1796,7 +1836,17 @@ const Dashboard = () => {
         );
     };
 
-    const Sidebar = () => (
+    const Sidebar = () => {
+        const [user, setUser] = useState<any>(null);
+
+        useEffect(() => {
+            const userData = localStorage.getItem('user');
+            if (userData) {
+                setUser(JSON.parse(userData));
+            }
+        }, []);
+        
+        return (        
         <div className={`fixed inset-y-0 left-0 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-200 ease-in-out z-40 w-64`}>
             <div className="flex flex-col items-center justify-center p-4 border-b border-gray-200">
                 <div className="flex items-center space-x-2">
@@ -1812,6 +1862,8 @@ const Dashboard = () => {
                     <FaChevronLeft className="w-4 h-4" />
                 </button>
             </div>
+
+            <UserProfile user={user} />
 
             <nav className="p-4">
                 <div className="space-y-1">
@@ -1840,24 +1892,25 @@ const Dashboard = () => {
                         <span>Movimientos</span>
                     </a>
                     <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaUser className="text-[#0074CF]" />
-                        <span>Usuarios</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
                         <FaCog className="text-[#0074CF]" />
                         <span>Configuración</span>
                     </a>
                 </div>
 
                 <div className="mt-8 pt-4 border-t border-gray-200">
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaSignOutAlt className="text-[#0074CF]" />
+                    <button
+                        onClick={handleLogout}
+                        className="flex items-center w-full space-x-3 p-2 rounded-lg text-red-600 hover:bg-red-50 font-gotham-regular transition-colors"
+                    >
+                        <FaSignOutAlt className="text-red-500" />
                         <span>Cerrar Sesión</span>
-                    </a>
+                    </button>
                 </div>
             </nav>
         </div>
-    );
+        );
+    };
+
 
     const DetailModal = ({ onClose, selectedPrediction, refreshPredictions }: DetailModalProps) => {
         if (!selectedPrediction) return null;
@@ -1973,8 +2026,8 @@ const Dashboard = () => {
                                         </div>
                                         <div className="text-xs text-slate-500 flex flex-col">
                                             <span>Físico: {formatNumber(producto.STOCK_FISICO)}</span>
-                                            {producto.UNIDADES_TRANSITO_DISPONIBLES > 0 && (
-                                                <span className="text-blue-600">Tránsito: {formatNumber(producto.UNIDADES_TRANSITO_DISPONIBLES)}</span>
+                                            {producto.UNIDADES_TRANSITO > 0 && (
+                                                <span className="text-blue-600">Tránsito: {formatNumber(producto.UNIDADES_TRANSITO)}</span>
                                             )}
                                             <span>{diasCobertura} días de cobertura</span>
                                         </div>
@@ -1999,6 +2052,29 @@ const Dashboard = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            <AlertConfig
+                                product={producto}
+                                onConfigure={async (phone) => {
+                                    const response = await fetch(`${API_URL}/alertas/stock`, {
+                                        method: 'POST',
+                                        headers: {
+                                            'Content-Type': 'application/json',
+                                        },
+                                        body: JSON.stringify({
+                                            predictionData: selectedPrediction,
+                                            phone: `593${phone}`
+                                        })
+                                    });
+
+                                    if (!response.ok) {
+                                        const error = await response.json();
+                                        throw new Error(error.message || 'Error al enviar alerta');
+                                    }
+
+                                    return response.json();
+                                }}
+                            />
 
                             <TransitUnitsControl codigo={producto.CODIGO} />
 
@@ -2132,74 +2208,137 @@ const Dashboard = () => {
                             </div>
 
                             {/* Proyección Mensual */}
-                            <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
-                                <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
-                                    <h4 className="text-lg font-gotham-bold text-[#001A30] flex items-center gap-2">
-                                        <FaChartLine className="text-[#0074CF]" />
-                                        Proyección Mensual Detallada
-                                    </h4>
-                                    <div className="text-xs font-gotham-light text-[#0074CF]">
-                                        Fecha de cálculo: {new Date().toLocaleDateString()}
+                            <div className="space-y-6">
+                                {/* Tabla de Proyección */}
+                                <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
+                                    <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
+                                        <h4 className="text-lg font-gotham-bold text-[#001A30] flex items-center gap-2">
+                                            <FaChartLine className="text-[#0074CF]" />
+                                            Proyección Mensual Detallada
+                                        </h4>
+                                        <div className="text-xs font-gotham-light text-[#0074CF]">
+                                            Fecha de cálculo: {new Date().toLocaleDateString()}
+                                        </div>
                                     </div>
-                                </div>
-                                <div className="p-4 overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead>
-                                            <tr className="bg-[#EDEDED]">
-                                                <th className="text-left text-sm text-[#001A30] font-gotham-medium p-3">Mes / Fecha Reposición</th>
-                                                <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Consumo Promedio</th>
-                                                <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock Proyectado</th>
-                                                <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock Seguridad</th>
-                                                <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Punto Reorden</th>
-                                                <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Acción Requerida</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {producto.PROYECCIONES.map((proyeccion, index) => {
-                                                const isReposicionMonth = proyeccion.fecha_reposicion === producto.FECHA_REPOSICION;
+                                    <div className="p-4 overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead>
+                                                <tr className="bg-[#EDEDED]">
+                                                    <th className="text-left text-sm text-[#001A30] font-gotham-medium p-3">Mes / Fecha Reposición</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Consumo Promedio</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock después de Consumo</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Pedidos pendientes</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock Seguridad</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Punto Reorden</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Acción Requerida</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {producto.PROYECCIONES.map((proyeccion, index) => {
+                                                    const isReposicionMonth = proyeccion.fecha_reposicion === producto.FECHA_REPOSICION;
 
-                                                return (
-                                                    <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
-                                                        <td className="p-3 text-sm text-[#001A30] font-gotham-regular">
-                                                            <div>
-                                                                {formatFullDate(proyeccion.fecha_reposicion)}
-                                                                {isReposicionMonth && (
-                                                                    <div className="text-xs text-[#00B0F0] font-gotham-light mt-1">
-                                                                        Reposición estimada
+                                                    return (
+                                                        <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
+                                                            <td className="p-3 text-sm text-[#001A30] font-gotham-regular">
+                                                                <div>
+                                                                    {formatFullDate(proyeccion.fecha_reposicion)}
+                                                                    {isReposicionMonth && (
+                                                                        <div className="text-xs text-[#00B0F0] font-gotham-light mt-1">
+                                                                            Reposición estimada
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                                {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                                {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="text-center">
+                                                                {Object.keys(proyeccion.pedidos_pendientes).length > 0 ? (
+                                                                    <div className="flex flex-col gap-1">
+                                                                        {Object.entries(proyeccion.pedidos_pendientes).map(([mes, unidades]) => (
+                                                                            <span key={mes} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
+                                                                                {mes}: {unidades} unid.
+                                                                            </span>
+                                                                        ))}
+                                                                    </div>
+                                                                ) : '-'}
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                                {formatNumber(proyeccion.stock_seguridad)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                                {formatNumber(proyeccion.punto_reorden)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center">
+                                                                {proyeccion.cajas_a_pedir > 0 ? (
+                                                                    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
+                                                                        <FiAlertTriangle className="w-3 h-3" />
+                                                                        Pedir {proyeccion.cajas_a_pedir} cajas
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
+                                                                        <FiCheckCircle className="w-3 h-3" />
+                                                                        Stock suficiente
                                                                     </div>
                                                                 )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                            {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                        </td>
-                                                        <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                            {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                        </td>
-                                                        <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                            {formatNumber(proyeccion.stock_seguridad)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                        </td>
-                                                        <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                            {formatNumber(proyeccion.punto_reorden)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                        </td>
-                                                        <td className="p-3 text-center">
-                                                            {proyeccion.cajas_a_pedir > 0 ? (
-                                                                <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
-                                                                    <FiAlertTriangle className="w-3 h-3" />
-                                                                    Pedir {proyeccion.cajas_a_pedir} cajas
-                                                                </div>
-                                                            ) : (
-                                                                <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
-                                                                    <FiCheckCircle className="w-3 h-3" />
-                                                                    Stock suficiente
-                                                                </div>
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                );
-                                            })}
-                                        </tbody>
-                                    </table>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+
+                                {/* Contenedor Explicativo */}
+                                <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
+                                    <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
+                                        <h4 className="text-lg font-gotham-bold text-[#001A30] flex items-center gap-2">
+                                            <FaInfoCircle className="text-[#0074CF]" />
+                                            Guía de Interpretación de Proyecciones
+                                        </h4>
+                                    </div>
+                                    <div className="p-4 grid gap-4">
+                                        {/* Explicación de Cálculo de Stock */}
+                                        <div className="bg-green-50 border-l-4 border-green-400 p-3">
+                                            <h5 className="font-gotham-bold text-[#001A30] mb-1">📦 Cálculo de Stock después de Consumo</h5>
+                                            <div className="text-sm font-gotham-light text-[#001A30] space-y-2">
+                                                <p>
+                                                    Para cada mes, el stock se calcula como:
+                                                </p>
+                                                <div className="bg-white p-2 rounded border border-green-200 font-gotham-medium">
+                                                    Stock Final = (Stock Inicial + Unidades en Tránsito + Pedidos Recibidos) - Consumo Mensual
+                                                </div>
+                                                <p>
+                                                    Las <span className="font-gotham-medium">unidades en tránsito</span> solo se suman en el mes de llegada.
+                                                </p>
+                                            </div>
+                                        </div>
+
+                                        {/* Explicación de Columnas Clave */}
+                                        <div className="bg-gray-50 border-l-4 border-gray-400 p-3">
+                                            <h5 className="font-gotham-bold text-[#001A30] mb-2">🔍 Cómo Leer la Tabla</h5>
+                                            <div className="text-sm font-gotham-light text-[#001A30] space-y-3">
+                                                <div>
+                                                    <span className="font-gotham-medium block">Stock después de consumo:</span>
+                                                    Cantidad proyectada al final del mes después de satisfacer la demanda
+                                                </div>
+
+                                                <div>
+                                                    <span className="font-gotham-medium block">Pedidos pendientes:</span>
+                                                    Órdenes generadas por el sistema que llegarán en meses futuros
+                                                </div>
+
+                                                <div>
+                                                    <span className="font-gotham-medium block">Punto de reorden:</span>
+                                                    Nivel que activa nuevas órdenes de compra (considera stock de seguridad)
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -2357,6 +2496,398 @@ const Dashboard = () => {
         );
     };
 
+    // Componente de Login
+    const LoginForm = ({ onLogin }: { onLogin: () => void }) => {
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
+
+        const handleSubmit = async (e: React.FormEvent) => {
+            e.preventDefault();
+            setLoading(true);
+            setError('');
+
+            try {
+                const response = await axios.post(`${API_URL}/auth/login`, {
+                    email,
+                    password
+                });
+
+                if (response.data.token) {
+                    // Guardar token en localStorage o cookies
+                    localStorage.setItem('token', response.data.token);
+                    localStorage.setItem('user', JSON.stringify(response.data.user));
+
+                    // Llamar al callback de login exitoso
+                    onLogin();
+                } else {
+                    setError('Credenciales inválidas');
+                }
+            } catch (err: any) {
+                console.error('Login error:', err);
+                setError(err.response?.data?.message || 'Error al iniciar sesión');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
+                <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
+                    {/* Header con gradiente corporativo */}
+                    <div className="flex flex-col items-center p-6">
+                        <img 
+                            src="/Logo_Kpital.jpg" 
+                            alt="Logo Kpital" 
+                            className="h-16 mb-3 object-contain"
+                        />
+                        <h1 className="text-2xl font-bold text-[#0074CF]">Iniciar Sesión</h1>
+                        <p className="text-[#001A30] mt-1">Accede a tu cuenta de Plannink</p>
+                    </div>
+
+                    <div className="p-8">
+                        {error && (
+                            <div className="mb-6 p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
+                                <FiAlertCircle />
+                                <span>{error}</span>
+                            </div>
+                        )}
+
+                        <form onSubmit={handleSubmit} className="space-y-6">
+                            <div>
+                                <label htmlFor="email" className="block text-sm font-medium text-[#001A30] mb-1">
+                                    Correo Electrónico
+                                </label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <FaUser className="text-[#0074CF]" />
+                                    </div>
+                                    <input
+                                        id="email"
+                                        name="email"
+                                        type="email"
+                                        required
+                                        value={email}
+                                        onChange={(e) => setEmail(e.target.value)}
+                                        className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                        placeholder="tu@email.com"
+                                    />
+                                </div>
+                            </div>
+
+                            <div>
+                                <label htmlFor="password" className="block text-sm font-medium text-[#001A30] mb-1">
+                                    Contraseña
+                                </label>
+                                <div className="relative">
+                                    <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                        <FaLock className="text-[#0074CF]" />
+                                    </div>
+                                    <input
+                                        id="password"
+                                        name="password"
+                                        type="password"
+                                        required
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                        placeholder="••••••••"
+                                    />
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center">
+                                    <input
+                                        id="remember-me"
+                                        name="remember-me"
+                                        type="checkbox"
+                                        className="h-4 w-4 text-[#0074CF] focus:ring-[#0074CF] border-[#EDEDED] rounded"
+                                    />
+                                    <label htmlFor="remember-me" className="ml-2 block text-sm text-[#001A30]">
+                                        Recordarme
+                                    </label>
+                                </div>
+
+                                <div className="text-sm">
+                                    <Link href="/forgot-password" className="font-medium text-[#0074CF] hover:text-[#003268]">
+                                        ¿Olvidaste tu contraseña?
+                                    </Link>
+                                </div>
+                            </div>
+
+                            <div>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white bg-gradient-to-r from-[#0074CF] to-[#003268] hover:from-[#0060b0] hover:to-[#002550] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00B0F0] transition-all"
+                                >
+                                    {loading ? (
+                                        <>
+                                            <FaSpinner className="animate-spin mr-2" />
+                                            Procesando...
+                                        </>
+                                    ) : (
+                                        'Iniciar Sesión'
+                                    )}
+                                </button>
+                            </div>
+                        </form>
+
+                        <div className="mt-6 text-center">
+                            <p className="text-sm text-[#001A30]">
+                                ¿No tienes una cuenta?{' '}
+                                <button
+                                    onClick={() => {
+                                        setShowLogin(false);  // Oculta el formulario de login
+                                        setShowRegister(true); // Muestra el formulario de registro
+                                    }}
+                                    className="font-medium text-[#0074CF] hover:text-[#003268]"
+                                >
+                                    Regístrate
+                                </button>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Componente de Registro
+    const RegisterForm = ({ onRegister }: { onRegister: () => void }) => {
+        const [nombre, setNombre] = useState('');
+        const [email, setEmail] = useState('');
+        const [password, setPassword] = useState('');
+        const [celular, setCelular] = useState('');
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState('');
+        const [success, setSuccess] = useState(false);
+        const router = useRouter();
+
+        const handleSubmit = async (e: React.FormEvent) => {
+            e.preventDefault();
+            setLoading(true);
+            setError('');
+
+            // Validación básica
+            if (!nombre || !email || !password || !celular) {
+                setError('Todos los campos son requeridos');
+                setLoading(false);
+                return;
+            }
+
+            if (!email.includes('@')) {
+                setError('Email inválido');
+                setLoading(false);
+                return;
+            }
+
+            if (!/^\d{10}$/.test(celular)) {
+                setError('El número de celular debe tener exactamente 10 dígitos');
+                setLoading(false);
+                return;
+            }            
+
+            try {
+                const response = await axios.post(`${API_URL}/auth/register`, {
+                    nombre,
+                    email,
+                    password,
+                    celular
+                });
+
+                if (response.data.token) {
+                    setSuccess(true);
+                    // Guardar token y usuario
+                    localStorage.setItem('token', response.data.token);
+                    localStorage.setItem('user', JSON.stringify(response.data.user));
+
+                    // Redirigir después de 2 segundos
+                    setTimeout(() => {
+                        onRegister();
+                    }, 2000);
+                }
+            } catch (err: any) {
+                console.error('Register error:', err);
+                setError(err.response?.data?.message || 'Error al registrar usuario');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
+                <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
+                    {/* Header con gradiente corporativo */}
+                    <div className="flex flex-col items-center p-6">
+                        <img 
+                            src="/Logo_Kpital.jpg" 
+                            alt="Logo Kpital" 
+                            className="h-16 mb-3 object-contain"
+                        />
+                        <h1 className="text-2xl font-bold text-[#0074CF]">Crear Cuenta</h1>
+                        <p className="text-[#001A30] mt-1">Únete a Plannink</p>
+                    </div>
+
+                    <div className="p-8">
+                        {error && (
+                            <div className="mb-6 p-3 bg-red-50 text-red-700 rounded-lg flex items-center gap-2">
+                                <FiAlertCircle />
+                                <span>{error}</span>
+                            </div>
+                        )}
+
+                        {success ? (
+                            <div className="text-center py-8">
+                                <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                                    <FaCheck className="h-6 w-6 text-green-600" />
+                                </div>
+                                <h3 className="text-lg font-medium text-[#001A30] mb-2">
+                                    ¡Registro exitoso!
+                                </h3>
+                                <p className="text-sm text-[#0074CF]">
+                                    Serás redirigido al dashboard...
+                                </p>
+                            </div>
+                        ) : (
+                            <form onSubmit={handleSubmit} className="space-y-6">
+                                <div>
+                                    <label htmlFor="nombre" className="block text-sm font-medium text-[#001A30] mb-1">
+                                        Nombre Completo
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FaUser className="text-[#0074CF]" />
+                                        </div>
+                                        <input
+                                            id="nombre"
+                                            name="nombre"
+                                            type="text"
+                                            required
+                                            value={nombre}
+                                            onChange={(e) => setNombre(e.target.value)}
+                                            className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                            placeholder="Juan Pérez"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label htmlFor="email" className="block text-sm font-medium text-[#001A30] mb-1">
+                                        Correo Electrónico
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FaUser className="text-[#0074CF]" />
+                                        </div>
+                                        <input
+                                            id="email"
+                                            name="email"
+                                            type="email"
+                                            required
+                                            value={email}
+                                            onChange={(e) => setEmail(e.target.value)}
+                                            className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                            placeholder="tu@email.com"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label htmlFor="password" className="block text-sm font-medium text-[#001A30] mb-1">
+                                        Contraseña
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FaLock className="text-[#0074CF]" />
+                                        </div>
+                                        <input
+                                            id="password"
+                                            name="password"
+                                            type="password"
+                                            required
+                                            value={password}
+                                            onChange={(e) => setPassword(e.target.value)}
+                                            className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                            placeholder="••••••••"
+                                        />
+                                    </div>
+                                    <p className="mt-1 text-xs text-[#0074CF]">
+                                        Mínimo 8 caracteres
+                                    </p>
+                                </div>
+
+                                <div>
+                                    <label htmlFor="celular" className="block text-sm font-medium text-[#001A30] mb-1">
+                                        Número de Celular
+                                    </label>
+                                    <div className="relative">
+                                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                            <FaPhone className="text-[#0074CF]" />
+                                        </div>
+                                        <input
+                                            id="celular"
+                                            name="celular"
+                                            type="tel"
+                                            required
+                                            value={celular}
+                                            onChange={(e) => setCelular(e.target.value)}
+                                            className="pl-10 w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                            placeholder="0991234567"
+                                        />
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white bg-gradient-to-r from-[#0074CF] to-[#003268] hover:from-[#0060b0] hover:to-[#002550] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00B0F0] transition-all"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <FaSpinner className="animate-spin mr-2" />
+                                                Registrando...
+                                            </>
+                                        ) : (
+                                            'Registrarme'
+                                        )}
+                                    </button>
+                                </div>
+                            </form>
+                        )}
+
+                        <div className="mt-6 text-center">
+                            <p className="text-sm text-[#001A30]">
+                                ¿Ya tienes una cuenta?{' '}
+                                <button
+                                    onClick={() => {
+                                        setShowLogin(true);  // Oculta el formulario de login
+                                        setShowRegister(false); // Muestra el formulario de registro
+                                    }}
+                                    className="font-medium text-[#0074CF] hover:text-[#003268]"
+                                >
+                                    Inicia Sesión
+                                </button>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    const handleLogout = () => {
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+        setIsAuthenticated(false); // Actualizar estado de autenticación
+        setShowLogin(true);
+        setShowRegister(false);
+    };
+
+
     // Componente de Barra de Búsqueda
     const SearchBar = () => {
         const inputRef = useRef<HTMLInputElement>(null);
@@ -2480,9 +3011,61 @@ const Dashboard = () => {
         );
     };
 
+    // Componente UserProfile
+    const UserProfile = ({ user }: { user: any }) => {
+        return (
+            <div className="flex flex-col items-center p-4 border-b border-gray-200">
+                <div className="relative mb-4">
+                    <div className="w-16 h-16 rounded-full bg-[#0074CF] flex items-center justify-center text-2xl font-bold text-white">
+                        {user?.nombre?.[0]?.toUpperCase() || 'U'}
+                    </div>
+                    <div className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 rounded-full border-2 border-white"></div>
+                </div>
+                <div className="text-center">
+                    <h3 className="font-gotham-medium text-[#001A30] text-lg">
+                        {user?.nombre || 'Usuario'}
+                    </h3>
+                    <p className="text-sm text-[#0074CF] font-gotham-light truncate">
+                        {user?.email || 'usuario@example.com'}
+                    </p>
+                    <div className="mt-2 flex items-center justify-center gap-1 text-sm text-[#001A30]">
+                        <FaPhone className="text-[#00B0F0] text-sm" />
+                        <span>{user?.celular || 'No registrado'}</span>
+                    </div>
+                </div>
+            </div>
+        );
+    };
+
+    // Si está cargando, mostrar spinner
+    if (isLoading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center bg-[#EDEDED]">
+                <FaSpinner className="animate-spin h-12 w-12 text-[#0074CF]" />
+            </div>
+        );
+    }
+
+    // Si no está autenticado, mostrar forms de login/registro
+    if (!isAuthenticated) {
+        return (
+            // Si está en el estado de registro, muestra el formulario de registro
+            showRegister ?
+                <RegisterForm
+                    onRegister={handleSuccessfulRegister}
+                /> :
+                // Si no está en el estado de registro, muestra el formulario de login
+                <LoginForm
+                    onLogin={handleSuccessfulLogin}
+                />
+        );
+    }
+
+
     // Render principal
     return (
         <div className="flex h-screen bg-gray-50">
+
             <Sidebar />
 
             <div className={`flex-1 flex flex-col overflow-hidden ${sidebarOpen ? 'ml-64' : 'ml-0'} transition-all duration-200`}>
@@ -2571,7 +3154,7 @@ const Dashboard = () => {
                                         <tbody className="divide-y divide-slate-100">
                                             {currentPredictions.length > 0 ? (
                                                 currentPredictions.map((producto) => {
-                                                    const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO_DISPONIBLES || 0);
+                                                    const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO || 0);
                                                     const status = getStockStatus(
                                                         stockTotal,
                                                         producto.STOCK_SEGURIDAD,
@@ -2609,10 +3192,10 @@ const Dashboard = () => {
                                                                             <FaBox className="mr-1" />
                                                                             {formatNumber(producto.STOCK_FISICO)}
                                                                         </span>
-                                                                        {producto.UNIDADES_TRANSITO_DISPONIBLES > 0 && (
+                                                                        {producto.UNIDADES_TRANSITO > 0 && (
                                                                             <span className="flex items-center text-blue-600">
                                                                                 <FaTruck className="mr-1" />
-                                                                                +{formatNumber(producto.UNIDADES_TRANSITO_DISPONIBLES)}
+                                                                                +{formatNumber(producto.UNIDADES_TRANSITO)}
                                                                             </span>
                                                                         )}
                                                                         <span>| {diasCobertura} días</span>
