@@ -224,12 +224,17 @@ def calcular_predicciones(df, prophet_predictions=None):
         df["DIARIO"] = df["PROM CONS+Proyec"] / 22
         df["SS"] = df["DIARIO"] * 19
         
+        # Configuración de tiempos
+        lead_time_days = 30  # Lead time de 30 días
+        alarma_stock_days = 22  # Alarma a los 22 días
+        dias_punto_reorden = 44  # Punto de reorden fijo en 44 días (2 meses laborables)
+        
         # Métodos de cálculo
         df["STOCK MINIMO (Prom + SS)"] = df["PROM CONS+Proyec"] + df["SS"]
-        df["PUNTO DE REORDEN (44 días)"] = df["DIARIO"] * 44
+        df[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"] = df["DIARIO"] * dias_punto_reorden
         
         # Cálculo de pedidos
-        df["DEFICIT"] = np.maximum(df["PUNTO DE REORDEN (44 días)"] - df["STOCK  TOTAL"], 0)
+        df["DEFICIT"] = np.maximum(df[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"] - df["STOCK  TOTAL"], 0)
         df["CAJAS NECESARIAS"] = df["DEFICIT"] / df["UNID/CAJA"]
         df["CAJAS A PEDIR"] = np.ceil(df["CAJAS NECESARIAS"]).astype(int)
         df["UNIDADES A PEDIR"] = df["CAJAS A PEDIR"] * df["UNID/CAJA"]
@@ -245,14 +250,13 @@ def calcular_predicciones(df, prophet_predictions=None):
             stock_actual = row["STOCK  TOTAL"]
             
             # Configuración de parámetros
-            lead_time_days = 60
             fecha_actual = datetime(2025, 3, 1)
             max_dias_reposicion = 30
             
             if row["DIARIO"] > 0:
                 # Calcular frecuencia óptima de reposición
                 frecuencia_reposicion = min(
-                    row["PUNTO DE REORDEN (44 días)"] / row["DIARIO"],
+                    row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"] / row["DIARIO"],
                     max_dias_reposicion
                 )
                 
@@ -288,7 +292,7 @@ def calcular_predicciones(df, prophet_predictions=None):
                 diario = consumo / 22
                 ss_mes = diario * 19
                 stock_minimo = consumo + ss_mes
-                punto_reorden_mes = diario * 44
+                punto_reorden_mes = diario * dias_punto_reorden
                 
                 stock_despues_consumo = max(stock_actual - consumo, 0)
                 deficit = max(punto_reorden_mes - stock_despues_consumo, 0)
@@ -311,6 +315,9 @@ def calcular_predicciones(df, prophet_predictions=None):
                     tiempo_cob_mes = 0
                     frecuencia_rep_mes = 0
                 
+                # Determinar alerta de stock (cuando queda menos de 22 días de stock)
+                alerta_stock = stock_despues_consumo < (diario * alarma_stock_days)
+                
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[fecha.month]}-{fecha.year}",
                     "stock_proyectado": round(stock_proyectado, 2),
@@ -322,7 +329,7 @@ def calcular_predicciones(df, prophet_predictions=None):
                     "deficit": round(deficit, 2),
                     "cajas_a_pedir": cajas_pedir,
                     "unidades_a_pedir": round(unidades_pedir, 2),
-                    "alerta_stock": bool(stock_despues_consumo < punto_reorden_mes),
+                    "alerta_stock": alerta_stock,
                     "fecha_reposicion": fecha_rep_mes,
                     "tiempo_cobertura": round(tiempo_cob_mes, 2),
                     "frecuencia_reposicion": round(frecuencia_rep_mes, 2),
@@ -353,10 +360,10 @@ def calcular_predicciones(df, prophet_predictions=None):
                 "CONSUMO_DIARIO": float(row["DIARIO"]),
                 "STOCK_SEGURIDAD": float(row["SS"]),
                 "STOCK_MINIMO": float(row["STOCK MINIMO (Prom + SS)"]),
-                "PUNTO_REORDEN": float(row["PUNTO DE REORDEN (44 días)"]),
-                "DEFICIT": max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0),
-                "CAJAS_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))),
-                "UNIDADES_A_PEDIR": int(np.ceil(max(float(row["PUNTO DE REORDEN (44 días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))) * float(row["UNID/CAJA"]),
+                "PUNTO_REORDEN": float(row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"]),
+                "DEFICIT": max(float(row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"]) - float(row["STOCK  TOTAL"]), 0),
+                "CAJAS_A_PEDIR": int(np.ceil(max(float(row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))),
+                "UNIDADES_A_PEDIR": int(np.ceil(max(float(row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"]) - float(row["STOCK  TOTAL"]), 0) / float(row["UNID/CAJA"]))) * float(row["UNID/CAJA"]),
                 "FECHA_REPOSICION": fecha_reposicion_str,
                 "DIAS_COBERTURA": round(tiempo_cobertura, 2),
                 "FRECUENCIA_REPOSICION": round(frecuencia_reposicion, 2),
@@ -364,11 +371,12 @@ def calcular_predicciones(df, prophet_predictions=None):
                 "PROYECCIONES": proyecciones,
                 "CONFIGURACION": {
                     "DIAS_STOCK_SEGURIDAD": 19,
-                    "DIAS_PUNTO_REORDEN": 44,
-                    "LEAD_TIME_REPOSICION": 60,
+                    "DIAS_PUNTO_REORDEN": dias_punto_reorden,
+                    "LEAD_TIME_REPOSICION": lead_time_days,
+                    "DIAS_ALARMA_STOCK": alarma_stock_days,
                     "DIAS_MAX_REPOSICION": 30,
                     "DIAS_LABORALES_MES": 22,
-                    "VERSION_MODELO": "2.2-dynamic-transit"
+                    "VERSION_MODELO": "2.3-30day-leadtime-44reorder"
                 }
             }
             

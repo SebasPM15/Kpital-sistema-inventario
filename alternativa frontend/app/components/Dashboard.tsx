@@ -18,7 +18,8 @@ import {
     FaLightbulb,
     FaLock,
     FaSpinner,
-    FaPhone
+    FaPhone,
+    FaTruckLoading
 } from 'react-icons/fa';
 import { FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
@@ -47,6 +48,7 @@ const API_URL = 'https://kpital-sistema-inventario-backend-ia.onrender.com/api';
 // Interfaces
 interface Proyeccion {
     mes: string;
+    stock_inicial?: number; // Nuevo campo para stock al inicio del mes
     stock_proyectado: number;
     consumo_mensual: number;
     consumo_diario: number;
@@ -60,8 +62,10 @@ interface Proyeccion {
     fecha_reposicion: string;
     tiempo_cobertura: number;
     frecuencia_reposicion: number;
-    unidades_en_transito: number;  // Nuevo campo
-    pedidos_pendientes: Record<string, number>;  // Nuevo campo
+    unidades_en_transito: number;
+    pedidos_pendientes: Record<string, number>;
+    pedidos_recibidos?: number; // Nuevo campo para unidades recibidas este mes
+    accion_requerida?: string; // Nuevo campo para texto descriptivo de acción
 }
 
 interface ProductoData {
@@ -70,31 +74,54 @@ interface ProductoData {
     UNIDADES_POR_CAJA: number;
     STOCK_FISICO: number;
     UNIDADES_TRANSITO: number;
-    FRECUENCIA_REPOSICION?: number;  // Nuevo campo
     STOCK_TOTAL: number;
+    
+    // Consumos
     CONSUMO_PROMEDIO: number;
     CONSUMO_PROYECTADO: number;
     CONSUMO_TOTAL: number;
     CONSUMO_DIARIO: number;
+    HISTORICO_CONSUMOS: Record<string, number>;
+    
+    // Niveles de stock
     STOCK_SEGURIDAD: number;
     STOCK_MINIMO: number;
     PUNTO_REORDEN: number;
+    
+    // Pedidos
     DEFICIT: number;
-    alerta_stock: boolean;
     CAJAS_A_PEDIR: number;
     UNIDADES_A_PEDIR: number;
+    
+    // Tiempos
     FECHA_REPOSICION: string;
     DIAS_COBERTURA: number;
-    HISTORICO_CONSUMOS: Record<string, number>;
+    FRECUENCIA_REPOSICION: number;
+    
+    // Alertas
+    alerta_stock: boolean;
+    ULTIMA_ALERTA?: string; // Nuevo campo opcional
+    
+    // Proyecciones
     PROYECCIONES: Proyeccion[];
-    CONFIGURACION: {
-        DIAS_STOCK_SEGURIDAD: number;
-        DIAS_PUNTO_REORDEN: number;
-        VERSION_MODELO: string;  // Nuevo campo
-        LEAD_TIME_REPOSICION: number;
-        DIAS_MAX_REPOSICION: number;
-        DIAS_LABORALES_MES: number;
-    };
+    
+    // Configuración
+    CONFIGURACION: ConfiguracionInventario;
+    
+    // Campos adicionales para UI
+    COLOR_ALERTA?: string; // Nuevo campo para UI
+    ICONO_ESTADO?: string; // Nuevo campo para UI
+}
+
+interface ConfiguracionInventario {
+    DIAS_STOCK_SEGURIDAD: number;
+    DIAS_PUNTO_REORDEN: number;
+    DIAS_ALARMA_STOCK: number; // Nuevo campo para días de alarma
+    LEAD_TIME_REPOSICION: number;
+    DIAS_MAX_REPOSICION: number;
+    DIAS_LABORALES_MES: number;
+    VERSION_MODELO: string;
+    METODO_CALCULO?: string; // Nuevo campo opcional
 }
 
 interface PredictionData {
@@ -1923,8 +1950,6 @@ const Dashboard = () => {
         const diasCobertura = calculateDaysOfCoverage(stockActual, producto.CONSUMO_DIARIO);
         const consumoPromedio = producto.CONSUMO_PROMEDIO;
         const porcentajeSS = Math.round(stockSeguridad / consumoPromedio * 100);
-        const fechaReposicion = calcularFechaReposicion(diasCobertura);
-        const frecuenciaReposicion = Math.round(producto.UNIDADES_POR_CAJA * producto.CAJAS_A_PEDIR / producto.CONSUMO_DIARIO);
 
         const statusClass = {
             danger: 'bg-red-50 border-red-200',
@@ -1944,6 +1969,13 @@ const Dashboard = () => {
         };
 
         const variationData = generateVariationChartData(producto.HISTORICO_CONSUMOS || {});
+
+        // Función para formatear fecha con día
+        const formatDateWithDay = (dateStr: string | number | Date) => {
+            if (!dateStr || dateStr === "No aplica") return dateStr;
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        };
 
         return (
             <div className="fixed inset-0 bg-slate-500/30 backdrop-blur-sm flex items-start py-10 justify-center p-4 z-50 overflow-y-auto">
@@ -2216,7 +2248,7 @@ const Dashboard = () => {
                                             <FaChartLine className="text-[#0074CF]" />
                                             Proyección Mensual Detallada
                                         </h4>
-                                        <div className="text-xs font-gotham-light text-[#0074CF]">
+                                        <div className="text-xs text-[#00B0F0]">
                                             Fecha de cálculo: {new Date().toLocaleDateString()}
                                         </div>
                                     </div>
@@ -2224,62 +2256,79 @@ const Dashboard = () => {
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="bg-[#EDEDED]">
-                                                    <th className="text-left text-sm text-[#001A30] font-gotham-medium p-3">Mes / Fecha Reposición</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Consumo Promedio</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock después de Consumo</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Pedidos pendientes</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Stock Seguridad</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Punto Reorden</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-gotham-medium p-3">Acción Requerida</th>
+                                                    <th className="text-left text-sm text-[#001A30] font-medium p-3">Mes</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Inicial</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Recibidos</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Final</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Pendientes</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Acción</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
                                                 {producto.PROYECCIONES.map((proyeccion, index) => {
-                                                    const isReposicionMonth = proyeccion.fecha_reposicion === producto.FECHA_REPOSICION;
+                                                    const stockInicial = index === 0 
+                                                        ? producto.STOCK_TOTAL 
+                                                        : producto.PROYECCIONES[index-1].stock_proyectado;
+                                                    
+                                                    // Pedidos que llegan ESTE mes (ordenados el mes anterior)
+                                                    const pedidosRecibidos = index > 0 
+                                                        ? producto.PROYECCIONES[index-1].unidades_a_pedir || 0
+                                                        : 0;
+
+                                                    // Pedidos pendientes para meses FUTUROS (los que se ordenan este mes)
+                                                    const pedidosPendientes = proyeccion.unidades_a_pedir > 0
+                                                        ? [{
+                                                            mes: producto.PROYECCIONES[index+1]?.mes || 'Siguiente',
+                                                            unidades: proyeccion.unidades_a_pedir
+                                                        }]
+                                                        : [];
 
                                                     return (
                                                         <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
-                                                            <td className="p-3 text-sm text-[#001A30] font-gotham-regular">
-                                                                <div>
-                                                                    {formatFullDate(proyeccion.fecha_reposicion)}
-                                                                    {isReposicionMonth && (
-                                                                        <div className="text-xs text-[#00B0F0] font-gotham-light mt-1">
-                                                                            Reposición estimada
-                                                                        </div>
-                                                                    )}
+                                                            <td className="p-3 text-sm text-[#001A30]">
+                                                                <div className="font-medium">{proyeccion.mes}</div>
+                                                                <div className="text-xs text-[#0074CF]">
+                                                                    Reposición: {formatDateWithDay(proyeccion.fecha_reposicion)}
                                                                 </div>
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                            <td className="p-3 text-center text-sm text-[#001A30]">
+                                                                {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30]">
                                                                 {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
+                                                            <td className="p-3 text-center text-sm text-[#001A30]">
+                                                                {pedidosRecibidos > 0 ? (
+                                                                    <div className="flex items-center justify-center gap-1">
+                                                                        <FaTruck className="text-[#00B0F0]" />
+                                                                        {formatNumber(pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                                    </div>
+                                                                ) : '-'}
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium">
                                                                 {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
                                                             </td>
                                                             <td className="text-center">
-                                                                {Object.keys(proyeccion.pedidos_pendientes).length > 0 ? (
-                                                                    <div className="flex flex-col gap-1">
-                                                                        {Object.entries(proyeccion.pedidos_pendientes).map(([mes, unidades]) => (
-                                                                            <span key={mes} className="text-xs bg-amber-100 text-amber-800 px-2 py-1 rounded">
-                                                                                {mes}: {unidades} unid.
-                                                                            </span>
+                                                                {pedidosPendientes.length > 0 ? (
+                                                                    <div className="flex flex-col gap-1 items-center">
+                                                                        {pedidosPendientes.map(({mes, unidades}) => (
+                                                                            <div key={mes} className="flex items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
+                                                                                <FaTruckLoading className="text-[#0074CF]" />
+                                                                                {mes}: {formatNumber(unidades)} unid.
+                                                                            </div>
                                                                         ))}
                                                                     </div>
                                                                 ) : '-'}
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                                {formatNumber(proyeccion.stock_seguridad)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-gotham-regular">
-                                                                {formatNumber(proyeccion.punto_reorden)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
                                                             <td className="p-3 text-center">
                                                                 {proyeccion.cajas_a_pedir > 0 ? (
-                                                                    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
+                                                                    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-medium">
                                                                         <FiAlertTriangle className="w-3 h-3" />
                                                                         Pedir {proyeccion.cajas_a_pedir} cajas
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-gotham-medium">
+                                                                    <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
                                                                         <FiCheckCircle className="w-3 h-3" />
                                                                         Stock suficiente
                                                                     </div>
@@ -2296,48 +2345,62 @@ const Dashboard = () => {
                                 {/* Contenedor Explicativo */}
                                 <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
                                     <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
-                                        <h4 className="text-lg font-gotham-bold text-[#001A30] flex items-center gap-2">
+                                        <h4 className="text-lg font-bold text-[#001A30] flex items-center gap-2">
                                             <FaInfoCircle className="text-[#0074CF]" />
-                                            Guía de Interpretación de Proyecciones
+                                            Dinámica del Inventario
                                         </h4>
                                     </div>
-                                    <div className="p-4 grid gap-4">
-                                        {/* Explicación de Cálculo de Stock */}
-                                        <div className="bg-green-50 border-l-4 border-green-400 p-3">
-                                            <h5 className="font-gotham-bold text-[#001A30] mb-1">📦 Cálculo de Stock después de Consumo</h5>
-                                            <div className="text-sm font-gotham-light text-[#001A30] space-y-2">
+                                    
+                                    <div className="p-4 grid gap-4 md:grid-cols-2">
+
+                                        <div className="bg-[#00B0F0]/10 border-l-4 border-[#00B0F0] p-3">
+                                            <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
+                                                <FaBoxOpen className="text-[#00B0F0]" />
+                                                Flujo de Inventario
+                                            </h5>
+                                            <div className="text-sm text-[#001A30] space-y-2">
                                                 <p>
-                                                    Para cada mes, el stock se calcula como:
+                                                    <span className="font-medium">Stock Inicial:</span> Inventario disponible al inicio del mes
                                                 </p>
-                                                <div className="bg-white p-2 rounded border border-green-200 font-gotham-medium">
-                                                    Stock Final = (Stock Inicial + Unidades en Tránsito + Pedidos Recibidos) - Consumo Mensual
-                                                </div>
                                                 <p>
-                                                    Las <span className="font-gotham-medium">unidades en tránsito</span> solo se suman en el mes de llegada.
+                                                    <span className="font-medium">Consumo:</span> Demanda proyectada para el mes
+                                                </p>
+                                                <p>
+                                                    <span className="font-medium">Pedidos Recibidos:</span> Unidades que llegan este mes (ordenadas previamente)
+                                                </p>
+                                                <p>
+                                                    <span className="font-medium">Stock Final:</span> Resultado después del consumo y recepción
                                                 </p>
                                             </div>
                                         </div>
 
-                                        {/* Explicación de Columnas Clave */}
-                                        <div className="bg-gray-50 border-l-4 border-gray-400 p-3">
-                                            <h5 className="font-gotham-bold text-[#001A30] mb-2">🔍 Cómo Leer la Tabla</h5>
-                                            <div className="text-sm font-gotham-light text-[#001A30] space-y-3">
-                                                <div>
-                                                    <span className="font-gotham-medium block">Stock después de consumo:</span>
-                                                    Cantidad proyectada al final del mes después de satisfacer la demanda
-                                                </div>
-
-                                                <div>
-                                                    <span className="font-gotham-medium block">Pedidos pendientes:</span>
-                                                    Órdenes generadas por el sistema que llegarán en meses futuros
-                                                </div>
-
-                                                <div>
-                                                    <span className="font-gotham-medium block">Punto de reorden:</span>
-                                                    Nivel que activa nuevas órdenes de compra (considera stock de seguridad)
-                                                </div>
+                                        <div className="bg-[#0074CF]/10 border-l-4 border-[#0074CF] p-3">
+                                            <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
+                                                <FaTruck className="text-[#0074CF]" />
+                                                Gestión de Pedidos
+                                            </h5>
+                                            <div className="text-sm text-[#001A30] space-y-2">
+                                                <p>
+                                                    <span className="font-medium">
+                                                        <FaTruckLoading className="inline mr-1 text-[#0074CF]" />
+                                                        Pedidos Pendientes:
+                                                    </span> Órdenes en camino para meses futuros
+                                                </p>
+                                                <p>
+                                                    <span className="font-medium">
+                                                        <FaCalendarAlt className="inline mr-1 text-[#0074CF]" />
+                                                        Fecha Reposición:
+                                                    </span> Día estimado de llegada de nuevos pedidos
+                                                </p>
+                                                <p>
+                                                    <span className="font-medium">
+                                                        <FiAlertTriangle className="inline mr-1 text-red-500" />
+                                                        Acción Requerida:
+                                                    </span> Cantidad a ordenar cuando el stock es insuficiente
+                                                </p>
                                             </div>
                                         </div>
+
                                     </div>
                                 </div>
                             </div>
@@ -2507,23 +2570,57 @@ const Dashboard = () => {
             e.preventDefault();
             setLoading(true);
             setError('');
-
+        
             try {
                 const response = await axios.post(`${API_URL}/auth/login`, {
                     email,
                     password
                 });
-
-                if (response.data.token) {
-                    // Guardar token en localStorage o cookies
-                    localStorage.setItem('token', response.data.token);
-                    localStorage.setItem('user', JSON.stringify(response.data.user));
-
-                    // Llamar al callback de login exitoso
+        
+                const { token, user } = response.data;
+        
+                if (token) {
+                    // Verificar en la base de datos
+                    const verifyResponse = await axios.get(`${API_URL}/auth/email/${email}`, {
+                        headers: { Authorization: `Bearer ${token}` }
+                    });
+        
+                    const userFromDB = verifyResponse.data;
+        
+                    if (!userFromDB || userFromDB.email !== email) {
+                        setError('Usuario no encontrado en la base de datos.');
+                        return;
+                    }
+        
+                    // Verificar si hay usuario en localStorage
+                    const userFromLocalStorage = localStorage.getItem('user');
+        
+                    if (!userFromLocalStorage) {
+                        // El usuario existe en la BD pero no en el localStorage → lo sincronizamos
+                        localStorage.setItem('user', JSON.stringify(userFromDB));
+                        localStorage.setItem('token', token);
+                        onLogin();
+                        return;
+                    }
+        
+                    const parsedLocalUser = JSON.parse(userFromLocalStorage);
+        
+                    // Comparar IDs o emails
+                    if (parsedLocalUser.email !== userFromDB.email) {
+                        setError('El usuario en localStorage no coincide con el de la base de datos.');
+                        localStorage.removeItem('user');
+                        localStorage.removeItem('token');
+                        return;
+                    }
+        
+                    // Todo bien, continuar
+                    localStorage.setItem('token', token); // Actualizar si hace falta
+                    localStorage.setItem('user', JSON.stringify(userFromDB));
                     onLogin();
                 } else {
-                    setError('Credenciales inválidas');
+                    setError('Credenciales inválidas.');
                 }
+        
             } catch (err: any) {
                 console.error('Login error:', err);
                 setError(err.response?.data?.message || 'Error al iniciar sesión');
@@ -2531,6 +2628,7 @@ const Dashboard = () => {
                 setLoading(false);
             }
         };
+        
 
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
