@@ -91,7 +91,7 @@ const AlertConfig: React.FC<AlertConfigProps> = ({ product, onConfigure }) => {
 
     const shouldShowAlert = product.alerta_stock || product.DEFICIT > 0;
     const alertMessage = product.DEFICIT > 0
-        ? `Déficit de ${product.DEFICIT} unidades`
+        ? `Déficit de ${Math.round(product.DEFICIT)} unidades`
         : 'Stock bajo punto de reorden';
 
     // Función para formatear el número para mostrar al usuario
