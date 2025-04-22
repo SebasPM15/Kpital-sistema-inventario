@@ -12,7 +12,7 @@ const Home = () => {
               Forecast
             </h1>
             <p className="font-gotham-light text-[#0074CF] mt-1">
-              Sistema Inteligente de Predicción
+              Sistema Inteligente de Planeación de la Demanda
             </p>
           </div>
         </div>

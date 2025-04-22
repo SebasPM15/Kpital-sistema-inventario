@@ -552,7 +552,7 @@ const Dashboard = () => {
 
             addCompactText(
                 `El producto ${selectedPrediction.data.CODIGO} muestra un stock total de ${selectedPrediction.data.STOCK_TOTAL} unidades ` +
-                `(${selectedPrediction.data.STOCK_FISICO} físicas + ${selectedPrediction.data.UNIDADES_TRANSITO} en tránsito), ` +
+                `(${selectedPrediction.data.STOCK_FISICO} unidades físicas + ${selectedPrediction.data.UNIDADES_TRANSITO} unidades en tránsito), ` +
                 `con una cobertura de ${selectedPrediction.data.DIAS_COBERTURA} días frente a los ${selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD} ` +
                 `días recomendados, situándose en un nivel ${selectedPrediction.data.DIAS_COBERTURA < selectedPrediction.data.CONFIGURACION.DIAS_STOCK_SEGURIDAD ? 'CRÍTICO' : 'DE ALERTA'}.`
             );
@@ -566,10 +566,10 @@ const Dashboard = () => {
             const variabilidad = calculateVariability(selectedPrediction.data.HISTORICO_CONSUMOS);
             const desviacion = calculateStandardDeviation(Object.values(selectedPrediction.data.HISTORICO_CONSUMOS)) || 15;
             addCompactText(
-                `El histórico muestra un consumo promedio de ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)}±${desviacion.toFixed(0)} u/mes ` +
+                `El histórico muestra un consumo promedio de ${selectedPrediction.data.CONSUMO_PROMEDIO.toFixed(0)}±${desviacion.toFixed(0)} uds/mes ` +
                 `(variabilidad ${variabilidad.toFixed(1)}%), indicando una demanda ${variabilidad > 25 ? 'VOLÁTIL' : 'ESTABLE'}. ` +
-                `El punto de reorden actual (${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} u) y stock de seguridad ` +
-                `(${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} u) están ${variabilidad > 25 ? 'POR DEBAJO' : 'ACORDE'} ` +
+                `El punto de reorden actual (${selectedPrediction.data.PUNTO_REORDEN.toFixed(0)} uds) y stock de seguridad ` +
+                `(${selectedPrediction.data.STOCK_SEGURIDAD.toFixed(0)} uds) están ${variabilidad > 25 ? 'POR DEBAJO' : 'ACORDE'} ` +
                 `a la variabilidad observada.`
             );
             currentY += 6;
@@ -585,7 +585,7 @@ const Dashboard = () => {
                 `(1) Cobertura actual insuficiente (${selectedPrediction.data.DIAS_COBERTURA} días), ` +
                 `(2) Tiempo de reposición de ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} días, ` +
                 `(3) Variabilidad del ${variabilidad.toFixed(1)}%. El déficit actual de ` +
-                `${selectedPrediction.data.DEFICIT > 0 ? selectedPrediction.data.DEFICIT.toFixed(0) + ' u' : '0'} ` +
+                `${selectedPrediction.data.DEFICIT > 0 ? selectedPrediction.data.DEFICIT.toFixed(0) + ' uds' : '0'} ` +
                 `(${(selectedPrediction.data.DEFICIT / selectedPrediction.data.STOCK_MINIMO * 100).toFixed(1)}% del mínimo) ` +
                 `agrega presión al sistema.`
             );
@@ -598,10 +598,10 @@ const Dashboard = () => {
             pdf.setTextColor(60, 60, 60);
             currentY += 2;
 
-            addCompactText(`• Pedido inmediato: ${selectedPrediction.data.CAJAS_A_PEDIR} cajas (${selectedPrediction.data.UNIDADES_A_PEDIR} u)`);
+            addCompactText(`• Pedido inmediato: ${selectedPrediction.data.CAJAS_A_PEDIR} cajas (${selectedPrediction.data.UNIDADES_A_PEDIR} uds)`);
             addCompactText(`• Fecha reposición: ${formatDate(selectedPrediction.data.FECHA_REPOSICION)}`);
             addCompactText(`• Optimización parámetros:`);
-            addCompactText(`  - Aumentar stock seguridad a ${Math.round(selectedPrediction.data.STOCK_SEGURIDAD * 1.15)} u (+15%)`, false, 10);
+            addCompactText(`  - Aumentar stock seguridad a ${Math.round(selectedPrediction.data.STOCK_SEGURIDAD * 1.15)} uds (+15%)`, false, 10);
             addCompactText(`  - Reducir lead time a 10 días (actual: ${selectedPrediction.data.CONFIGURACION.LEAD_TIME_REPOSICION} días)`, false, 10);
             addCompactText(`  - Revisar algoritmo de reorden cada trimestre`, false, 10);
             currentY += 6;
@@ -667,48 +667,56 @@ const Dashboard = () => {
                 }
             });
 
-            // --- GRÁFICO DE PREDICCIONES ---
+            // --- GRÁFICO DE PREDICCIONES SEMANAL ---
             checkPageBreak(160);
             currentY += 15;
             pdf.setFontSize(14);
             pdf.setTextColor(darkBlue[0], darkBlue[1], darkBlue[2]);
             pdf.setFont('helvetica', 'bold');
-            pdf.text('4. GRÁFICO DE PREDICCIONES', margin.left, currentY);
+            pdf.text('4. GRÁFICO DE PREDICCIONES SEMANAL', margin.left, currentY);
 
             pdf.setDrawColor(oceanBlue[0], oceanBlue[1], oceanBlue[2]);
             pdf.setLineWidth(0.3);
             pdf.line(margin.left, currentY + 2, pageWidth - margin.right, currentY + 2);
             currentY += 12;
 
-            // Configuración base para el texto
-            pdf.setFontSize(10);
-            pdf.setTextColor(60, 60, 60); // Gris oscuro para mejor legibilidad
+            // Convertir datos mensuales a semanas
+            const weeklyData = selectedPrediction.data.PROYECCIONES.flatMap(proyeccion => {
+                const semanas = [];
+                const consumoSemanal = proyeccion.consumo_mensual / 4;
+                let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
+
+                for (let i = 1; i <= 4; i++) {
+                    stock -= consumoSemanal;
+                    semanas.push({
+                        semana: `Sem ${i} ${formatMes(proyeccion.mes)}`,
+                        stock: Math.max(0, stock),
+                        min: proyeccion.punto_reorden,
+                        seguridad: proyeccion.stock_seguridad,
+                        consumo: consumoSemanal
+                    });
+                }
+                return semanas;
+            });
 
             // Crear canvas oculto en el DOM con mayor tamaño
             const canvas = document.createElement('canvas');
-            canvas.width = 1000;
-            canvas.height = 600;
+            canvas.width = 1200; // Aumentado para mejor resolución
+            canvas.height = 700; // Aumentado para mejor resolución
             canvas.style.display = 'none';
             document.body.appendChild(canvas);
 
-            // Generar el gráfico
+            // Generar el gráfico semanal
             const ctx = canvas.getContext('2d');
             if (ctx) {
-                const proyecciones = selectedPrediction.data.PROYECCIONES;
-                const meses = proyecciones.map(p => formatMes(p.mes));
-                const stockProyectado = proyecciones.map(p => p.stock_proyectado);
-                const stockSeguridad = proyecciones.map(p => p.stock_seguridad);
-                const puntoReorden = proyecciones.map(p => p.punto_reorden);
-                const consumoMensual = proyecciones.map(p => p.consumo_mensual);
-
                 const chart = new Chart(ctx, {
                     type: 'line',
                     data: {
-                        labels: meses,
+                        labels: weeklyData.map(w => w.semana),
                         datasets: [
                             {
                                 label: 'Stock Proyectado',
-                                data: stockProyectado,
+                                data: weeklyData.map(w => w.stock),
                                 borderColor: '#0074CF', // Azul principal
                                 backgroundColor: 'rgba(0, 176, 240, 0.15)', // Cyan con opacidad
                                 tension: 0.1,
@@ -720,7 +728,7 @@ const Dashboard = () => {
                             },
                             {
                                 label: 'Punto de Reorden',
-                                data: puntoReorden,
+                                data: weeklyData.map(w => w.min),
                                 borderColor: '#EF4444', // Rojo
                                 backgroundColor: 'rgba(239, 68, 68, 0.1)',
                                 borderDash: [5, 3],
@@ -731,7 +739,7 @@ const Dashboard = () => {
                             },
                             {
                                 label: 'Stock de Seguridad',
-                                data: stockSeguridad,
+                                data: weeklyData.map(w => w.seguridad),
                                 borderColor: '#001A30', // Azul oscuro
                                 backgroundColor: 'rgba(0, 26, 48, 0.1)',
                                 borderDash: [4, 2],
@@ -741,8 +749,8 @@ const Dashboard = () => {
                                 pointRadius: 4
                             },
                             {
-                                label: 'Consumo Mensual',
-                                data: consumoMensual,
+                                label: 'Consumo Semanal',
+                                data: weeklyData.map(w => w.consumo),
                                 borderColor: '#10B981', // Verde
                                 backgroundColor: 'rgba(16, 185, 129, 0.1)',
                                 borderDash: [3, 3],
@@ -759,9 +767,9 @@ const Dashboard = () => {
                         plugins: {
                             title: {
                                 display: true,
-                                text: 'Proyección de Stock Mensual',
+                                text: 'Proyección de Stock Semanal',
                                 font: {
-                                    size: 20,
+                                    size: 22,
                                     family: 'Helvetica',
                                     weight: 'bold'
                                 },
@@ -814,8 +822,8 @@ const Dashboard = () => {
                                 },
                                 grid: {
                                     color: 'rgba(237, 237, 237, 0.5)',
-                                    drawOnChartArea: true, // Esta es la propiedad correcta para mostrar/ocultar líneas
-                                    drawTicks: false // Oculta los ticks menores
+                                    drawOnChartArea: true,
+                                    drawTicks: false
                                 }
                             },
                             y: {
@@ -838,8 +846,8 @@ const Dashboard = () => {
                                 },
                                 grid: {
                                     color: 'rgba(237, 237, 237, 0.5)',
-                                    drawOnChartArea: true, // Esta es la propiedad correcta para mostrar/ocultar líneas
-                                    drawTicks: false // Oculta los ticks menores
+                                    drawOnChartArea: true,
+                                    drawTicks: false
                                 }
                             }
                         }
@@ -862,10 +870,10 @@ const Dashboard = () => {
 
                     const legendText = [
                         'Cómo interpretar este gráfico:',
-                        '- Área Azul: Stock proyectado',
+                        '- Área Azul: Stock proyectado semanal',
                         '- Línea Roja: Punto de reorden',
                         '- Línea Azul Oscuro: Stock de seguridad',
-                        '- Línea Verde: Consumo mensual'
+                        '- Línea Verde: Consumo semanal estimado'
                     ];
 
                     pdf.setFontSize(9);
@@ -1258,7 +1266,7 @@ const Dashboard = () => {
 
     // Componentes
     const PaginationControls = () => (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-center gap-4">
             <button
                 onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
                 disabled={currentPage === 1}
@@ -1266,13 +1274,13 @@ const Dashboard = () => {
             >
                 <FaChevronLeft className="w-4 h-4" />
             </button>
-
-            <div className="flex items-center gap-2 bg-sky-50 px-4 py-2 rounded-full">
-                <span className="text-sm font-medium text-sky-700">
+    
+            <div className="flex items-center gap-2 bg-sky-50 px-6 py-2 rounded-full mx-2">
+                <span className="text-sm font-medium text-sky-700 whitespace-nowrap">
                     Página <span className="text-sky-800 font-bold">{currentPage}</span> de {totalPages}
                 </span>
             </div>
-
+    
             <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
@@ -1317,9 +1325,9 @@ const Dashboard = () => {
                     {[
                         { field: "CODIGO", desc: "Identificador único del producto (texto alfanumérico)" },
                         { field: "DESCRIPCION", desc: "Nombre completo del producto (cadena de texto)" },
-                        { field: "UNIDADES_POR_CAJA", desc: "Capacidad de unidades por empaque (valor entero)" },
-                        { field: "STOCK_TOTAL", desc: "Existencia actual en inventario (valor numérico)" },
-                        { field: "HISTORICO_CONSUMOS", desc: 'Registro histórico en formato JSON: {"MES-AÑO": cantidad}' }
+                        { field: "UNIDADES POR CAJA", desc: "Capacidad de unidades por empaque (valor entero)" },
+                        { field: "STOCK TOTAL", desc: "Existencia actual en inventario (valor numérico)" },
+                        { field: "HISTORICO DE CONSUMOS", desc: 'Registro histórico en formato JSON: {mes-anio: cantidad}' }
                     ].map((item, index) => (
                         <li key={index} className="flex items-start gap-3">
                             <span className="inline-block w-2 h-2 mt-2.5 rounded-full bg-[#00B0F0] flex-shrink-0"></span>
@@ -2258,10 +2266,10 @@ const Dashboard = () => {
                                                 <tr className="bg-[#EDEDED]">
                                                     <th className="text-left text-sm text-[#001A30] font-medium p-3">Mes</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Inicial</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo Promedio</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Recibidos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Final</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Pendientes</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Sugeridos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Acción</th>
                                                 </tr>
                                             </thead>
@@ -2991,37 +2999,33 @@ const Dashboard = () => {
         const inputRef = useRef<HTMLInputElement>(null);
         const [showSuggestions, setShowSuggestions] = useState(false);
         const [activeSuggestion, setActiveSuggestion] = useState(-1);
-
-        // Efecto para mantener el foco en el input
+    
         useEffect(() => {
             if (inputRef.current) {
                 inputRef.current.focus();
             }
         }, []);
-
-        // Obtener sugerencias basadas en el término de búsqueda
+    
         const getSuggestions = () => {
             if (!searchTerm) return [];
-
+    
             return filteredPredictions
                 .filter(producto =>
                     producto.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     producto.DESCRIPCION.toLowerCase().includes(searchTerm.toLowerCase())
                 )
-                .slice(0, 5); // Limitar a 5 sugerencias
+                .slice(0, 5);
         };
-
+    
         const suggestions = getSuggestions();
-
-        // Manejar selección de sugerencia
+    
         const handleSuggestionClick = (producto: ProductoData) => {
-            setSearchTerm(producto.CODIGO); // O podrías usar producto.DESCRIPCION
+            setSearchTerm(producto.CODIGO);
             setShowSuggestions(false);
             inputRef.current?.focus();
-            handlePredict(producto.CODIGO); // Opcional: abrir detalles del producto seleccionado
+            handlePredict(producto.CODIGO);
         };
-
-        // Manejar navegación con teclado
+    
         const handleKeyDown = (e: React.KeyboardEvent) => {
             if (e.key === 'Escape') {
                 setSearchTerm('');
@@ -3041,7 +3045,7 @@ const Dashboard = () => {
                 handleSuggestionClick(suggestions[activeSuggestion]);
             }
         };
-
+    
         return (
             <div className="relative w-full max-w-md mb-6">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -3050,8 +3054,8 @@ const Dashboard = () => {
                 <input
                     ref={inputRef}
                     type="text"
-                    className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
-                    placeholder="Buscar por código o descripción..."
+                    className="block w-full pl-10 pr-10 py-2.5 border border-gray-300 rounded-lg bg-white shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900 text-sm"
+                    placeholder="Buscar por código/nombre"
                     value={searchTerm}
                     onChange={(e) => {
                         setSearchTerm(e.target.value);
@@ -3074,7 +3078,7 @@ const Dashboard = () => {
                         <FaTimes className="text-gray-400 hover:text-gray-600" />
                     </button>
                 )}
-
+    
                 {/* Panel de sugerencias */}
                 {showSuggestions && suggestions.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
@@ -3082,8 +3086,9 @@ const Dashboard = () => {
                             {suggestions.map((producto, index) => (
                                 <li
                                     key={producto.CODIGO}
-                                    className={`px-4 py-2 hover:bg-blue-50 cursor-pointer ${index === activeSuggestion ? 'bg-blue-100' : ''
-                                        }`}
+                                    className={`px-4 py-2 hover:bg-blue-50 cursor-pointer ${
+                                        index === activeSuggestion ? 'bg-blue-100' : ''
+                                    }`}
                                     onClick={() => handleSuggestionClick(producto)}
                                     onMouseEnter={() => setActiveSuggestion(index)}
                                 >
@@ -3098,11 +3103,10 @@ const Dashboard = () => {
                         </ul>
                     </div>
                 )}
-
-                {/* Mensaje cuando no hay sugerencias */}
+    
                 {showSuggestions && searchTerm && suggestions.length === 0 && (
                     <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-2 text-gray-500">
-                        No se encontraron productos coincidentes
+                        No se encontraron productos
                     </div>
                 )}
             </div>
@@ -3190,7 +3194,7 @@ const Dashboard = () => {
                                         </span>
                                     </h1>
                                     <p className="text-sm text-gray-500 mt-1">
-                                        Gestión inteligente de stock y proyecciones de inventario
+                                        Gestión inteligente de stock y proyecciones de la Demanda
                                     </p>
                                 </div>
                                 <button
@@ -3220,18 +3224,26 @@ const Dashboard = () => {
 
                             <div className="bg-white rounded-xl shadow-lg border border-slate-200">
                                 <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 rounded-t-xl">
-                                    <div className="w-full md:w-auto">
-                                        <h2 className="text-xl font-semibold text-slate-700 flex items-center gap-2">
-                                            <FaBoxOpen className="text-sky-600" />
-                                            Productos Analizados ({filteredPredictions.length})
-                                            <span className="text-sm font-normal text-slate-500 ml-2">
-                                                Archivo: {currentExcel}
-                                            </span>
-                                        </h2>
+                                    <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
+                                        <div className="flex items-center gap-2">
+                                            <FaBoxOpen className="text-sky-600 text-xl" />
+                                            <h2 className="text-xl font-semibold text-slate-700 whitespace-nowrap">
+                                                Productos Analizados
+                                                <span className="text-slate-500 font-normal ml-1">({filteredPredictions.length})</span>
+                                            </h2>
+                                        </div>
+                                        <span className="text-sm text-slate-500 md:ml-2">
+                                            Archivo: <span className="font-medium">{currentExcel}</span>
+                                        </span>
                                     </div>
-                                    <div className="w-full md:w-auto flex flex-col md:flex-row gap-4 items-start md:items-center">
-                                        <SearchBar />
-                                        <PaginationControls />
+
+                                    <div className="w-full md:w-auto flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                                        <div className="flex-grow md:w-64">
+                                            <SearchBar />
+                                        </div>
+                                        <div className="flex-shrink-0">
+                                            <PaginationControls />
+                                        </div>
                                     </div>
                                 </div>
 
