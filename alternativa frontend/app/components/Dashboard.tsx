@@ -3201,7 +3201,7 @@ const Dashboard = () => {
                                         </span>
                                     </h1>
                                     <p className="text-sm text-gray-500 mt-1">
-                                        Gestión inteligente de stock y proyecciones de la Demanda
+                                        Gestión inteligente de stock y proyecciones de la demanda
                                     </p>
                                 </div>
                                 <button
