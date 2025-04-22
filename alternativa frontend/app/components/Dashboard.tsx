@@ -1229,7 +1229,14 @@ const Dashboard = () => {
 
     const formatNumber = (value: number | undefined, decimals: number = 0) => {
         if (typeof value !== 'number' || isNaN(value)) return '-';
-        return value.toFixed(decimals);
+        
+        // Forzar número entero
+        const integerValue = Math.floor(value);
+        
+        return integerValue.toLocaleString('es-ES', {
+            maximumFractionDigits: 0,  // Sin decimales
+            useGrouping: true          // Con separadores de miles
+        });
     };
 
     const formatFullDate = (dateString: string) => {
