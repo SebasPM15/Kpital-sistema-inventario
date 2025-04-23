@@ -38,9 +38,9 @@ args = parser.parse_args()
 
 # Diccionario de meses en español
 SPANISH_MONTHS = {
-    1: "Ene", 2: "Feb", 3: "Mar", 4: "Abr", 
-    5: "May", 6: "Jun", 7: "Jul", 8: "Ago",
-    9: "Sep", 10: "Oct", 11: "Nov", 12: "Dic"
+    1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR", 
+    5: "MAY", 6: "JUN", 7: "JUL", 8: "AGO",
+    9: "SEP", 10: "OCT", 11: "NOV", 12: "DIC"
 }
 
 def setup_logging():
@@ -57,6 +57,56 @@ def setup_logging():
 
 logger = setup_logging()
 
+def identificar_columnas_consumo(df):
+    """Identifica dinámicamente todas las columnas de consumo disponibles en el DataFrame."""
+    # Lista directa para las columnas de consumo
+    cols_consumo = [col for col in df.columns if col.startswith("CONS ")]
+    
+    logger.info(f"Columnas que comienzan con 'CONS ' encontradas: {cols_consumo}")
+    
+    if not cols_consumo:
+        raise ValueError("No se encontraron columnas de consumo en el archivo")
+    
+    # Organizar columnas por fecha para determinar orden cronológico
+    fechas_consumo = []
+    for col in cols_consumo:
+        try:
+            # Extraer los componentes de la columna (ejemplo: "CONS ENE 2024")
+            partes = col.split()
+            if len(partes) >= 3:
+                mes_abr = partes[1]  # "ENE", "FEB", etc.
+                año = int(partes[2])  # "2024", "2025", etc.
+                
+                # Convertir abreviatura de mes a número
+                mes_num = None
+                for num, abr in SPANISH_MONTHS.items():
+                    if abr.upper() == mes_abr.upper():
+                        mes_num = num
+                        break
+                
+                if mes_num:
+                    fecha = datetime(año, mes_num, 1)
+                    fechas_consumo.append((col, fecha))
+                    logger.debug(f"Columna {col} mapeada a {fecha}")
+                else:
+                    logger.warning(f"No se pudo identificar el mes para columna: {col}")
+        except Exception as e:
+            logger.warning(f"Error al procesar columna {col}: {str(e)}")
+    
+    # Ordenar por fecha
+    fechas_consumo.sort(key=lambda x: x[1])
+    
+    cols_ordenadas = [item[0] for item in fechas_consumo]
+    ultima_fecha = fechas_consumo[-1][1] if fechas_consumo else None
+    
+    logger.info(f"Columnas ordenadas: {cols_ordenadas}")
+    if ultima_fecha:
+        logger.info(f"Última fecha detectada: {ultima_fecha.strftime('%Y-%m-%d')}")
+    else:
+        logger.warning("No se pudo determinar la última fecha")
+    
+    return cols_ordenadas, ultima_fecha
+
 def cargar_datos():
     """Carga y valida el archivo Excel."""
     try:
@@ -70,34 +120,34 @@ def cargar_datos():
         
         # Limpieza de columnas
         df.columns = [col.strip().replace("\n", " ") for col in df.columns]
+        logger.info(f"Columnas después de limpieza: {list(df.columns)}")
+        
         cols_to_drop = [col for col in df.columns if "Unnamed" in col]
         if cols_to_drop:
             df = df.drop(columns=cols_to_drop)
+            logger.info(f"Columnas después de eliminar Unnamed: {list(df.columns)}")
         
-        # Validación de columnas
-        required_columns = [
-            "CODIGO", "DESCRIPCION", "UNID/CAJA", "STOCK  TOTAL",
-            "CONS ENE 2024", "CONS FEB 2024", "CONS MAR 2024",
-            "CONS ABR 2024", "CONS MAY 2024", "CONS JUN 2024",
-            "CONS JUL 2024", "CONS AGO 2024", "CONS SEP 2024",
-            "CONS OCT 2024", "CONS NOV 2024", "CONS DIC 2024",
-            "CONS ENE 2025", "CONS FEB 2025"
-        ]
+        # Identificar columnas de consumo dinámicamente
+        cols_consumo, ultima_fecha = identificar_columnas_consumo(df)
         
-        missing_cols = [col for col in required_columns if col not in df.columns]
+        # Validación de columnas básicas
+        columnas_basicas = ["CODIGO", "DESCRIPCION", "UNID/CAJA", "STOCK  TOTAL"]
+        missing_cols = [col for col in columnas_basicas if col not in df.columns]
         if missing_cols:
-            raise ValueError(f"Columnas faltantes: {missing_cols}")
+            raise ValueError(f"Columnas básicas faltantes: {missing_cols}")
         
-        # Rellenar valores nulos en columnas de texto
+        # Rellenar valores nulos
         text_columns = ["CODIGO", "DESCRIPCION"]
         for col in text_columns:
             if col in df.columns:
                 df[col] = df[col].fillna("Sin información")
 
-        return df
+        return df, cols_consumo, ultima_fecha
 
     except Exception as e:
         logger.error(f"Error en carga de datos: {str(e)}")
+        import traceback
+        logger.error(f"Detalles del error: {traceback.format_exc()}")
         sys.exit(1)
 
 def cargar_modelo_prophet():
@@ -119,7 +169,7 @@ def cargar_modelo_prophet():
         logger.warning("Continuando sin modelo Prophet, usando método estadístico alternativo")
         return None
 
-def preparar_datos_prophet(df):
+def preparar_datos_prophet(df, cols_consumo):
     """Prepara los datos para su uso con Prophet."""
     prophet_data = {}
     
@@ -131,19 +181,23 @@ def preparar_datos_prophet(df):
         dates = []
         values = []
         
-        # Consumos 2024
-        for month in range(1, 13):
-            col_name = f"CONS {SPANISH_MONTHS[month]} 2024"
-            if col_name in df.columns:
-                dates.append(pd.Timestamp(2024, month, 15))
-                values.append(row.get(col_name, 0))
-        
-        # Consumos 2025 disponibles
-        for month in range(1, 3):
-            col_name = f"CONS {SPANISH_MONTHS[month]} 2025"
-            if col_name in df.columns:
-                dates.append(pd.Timestamp(2025, month, 15))
-                values.append(row.get(col_name, 0))
+        # Procesar todas las columnas de consumo identificadas
+        for col in cols_consumo:
+            partes = col.split()
+            if len(partes) >= 3:
+                mes_abr = partes[1]
+                año = int(partes[2])
+                
+                # Convertir abreviatura de mes a número
+                for num, abr in SPANISH_MONTHS.items():
+                    if abr == mes_abr:
+                        mes_num = num
+                        break
+                else:
+                    continue
+                
+                dates.append(pd.Timestamp(año, mes_num, 15))
+                values.append(row.get(col, 0))
                 
         # Crear DataFrame para Prophet
         if dates and values:
@@ -207,7 +261,7 @@ def predecir_con_prophet(prophet_model, prophet_data):
     
     return resultados
 
-def calcular_predicciones(df, prophet_predictions=None):
+def calcular_predicciones(df, cols_consumo, ultima_fecha, prophet_predictions=None):
     """Calcula las predicciones con ambos métodos."""
     try:
         logger.info("Calculando predicciones...")
@@ -218,7 +272,7 @@ def calcular_predicciones(df, prophet_predictions=None):
         df["UNID/CAJA"] = df["UNID/CAJA"].replace(0, 1)
 
         # Cálculos base
-        df["PROM CONSU"] = df.iloc[:, 4:18].mean(axis=1)
+        df["PROM CONSU"] = df[cols_consumo].mean(axis=1)
         df["Proyec de  Conss"] = pd.to_numeric(df.get("Proyec de  Conss", 0), errors='coerce').fillna(0)
         df["PROM CONS+Proyec"] = df["PROM CONSU"] + df["Proyec de  Conss"]
         df["DIARIO"] = df["PROM CONS+Proyec"] / 22
@@ -242,6 +296,12 @@ def calcular_predicciones(df, prophet_predictions=None):
         # Generar predicciones mensuales
         resultados_completos = []
         
+        # Ajustar fecha de inicio de predicción al mes siguiente del último mes disponible
+        fecha_inicio_prediccion = datetime(ultima_fecha.year, ultima_fecha.month, 1) + timedelta(days=32)
+        fecha_inicio_prediccion = datetime(fecha_inicio_prediccion.year, fecha_inicio_prediccion.month, 1)
+        
+        logger.info(f"Generando predicciones a partir de: {fecha_inicio_prediccion.strftime('%B %Y')}")
+
         for _, row in df.iterrows():
             if not isinstance(row["CODIGO"], str) or row["CODIGO"] == "Sin información":
                 continue
@@ -275,8 +335,11 @@ def calcular_predicciones(df, prophet_predictions=None):
                 tiempo_cobertura = 0
                 frecuencia_reposicion = 0
             
-            for mes in range(1, 7):
-                fecha = datetime(2025, 3, 1) + timedelta(days=mes * 30)
+            for mes in range(6):
+                # Calcular el mes y año correctamente
+                year = fecha_inicio_prediccion.year + (fecha_inicio_prediccion.month - 1 + mes) // 12
+                month = (fecha_inicio_prediccion.month - 1 + mes) % 12 + 1
+                fecha = datetime(year, month, 1)
                 
                 # Determinar consumo mensual
                 if prophet_predictions and row["CODIGO"] in prophet_predictions:
@@ -302,13 +365,19 @@ def calcular_predicciones(df, prophet_predictions=None):
                 
                 # Cálculos para este mes
                 if diario > 0:
+                    # Calcular tiempo de cobertura considerando stock de seguridad
                     tiempo_cob_mes = min(
                         max(stock_proyectado - ss_mes, 0) / diario,
                         max_dias_reposicion
                     )
-                    fecha_rep_mes = (fecha + timedelta(
-                        days=max(tiempo_cob_mes - lead_time_days, 0)
-                    )).strftime("%Y-%m-%d")
+                    
+                    # Calcular fecha de reposición (incluso si es en el pasado)
+                    dias_hasta_reposicion = max(tiempo_cob_mes - lead_time_days, 0)
+                    fecha_reposicion_calculada = fecha + timedelta(days=dias_hasta_reposicion)
+                    
+                    # Siempre mostrar la fecha calculada, sin mensajes de "Urgente"
+                    fecha_rep_mes = fecha_reposicion_calculada.strftime("%Y-%m-%d")
+                    
                     frecuencia_rep_mes = frecuencia_reposicion
                 else:
                     fecha_rep_mes = "No aplica"
@@ -469,19 +538,19 @@ def main():
         logger.info(f"Directorio de modelos: {MODELS_DIR}")
         
         # Cargar datos
-        df = cargar_datos()
-        
+        df, cols_consumo, ultima_fecha = cargar_datos()
+                
         # Cargar modelo Prophet
         prophet_model = cargar_modelo_prophet()
         
         # Preparar datos para Prophet si el modelo está disponible
         prophet_predictions = None
         if prophet_model:
-            prophet_data = preparar_datos_prophet(df)
+            prophet_data = preparar_datos_prophet(df, cols_consumo)
             prophet_predictions = predecir_con_prophet(prophet_model, prophet_data)
         
         # Calcular predicciones
-        _, resultados_completos = calcular_predicciones(df, prophet_predictions)
+        _, resultados_completos = calcular_predicciones(df, cols_consumo, ultima_fecha, prophet_predictions)
         
         # Guardar resultados
         guardar_resultados(resultados_completos)
