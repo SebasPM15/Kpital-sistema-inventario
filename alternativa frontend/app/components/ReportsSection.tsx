@@ -6,7 +6,7 @@ import { FaFileAlt, FaSpinner, FaSearch, FaTimes, FaEye, FaFileDownload } from '
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const API_URL = 'http://localhost:3500/api';
+const API_URL = 'https://kpital-sistema-inventario-backend-ia.onrender.com/api';
 
 interface Report {
     id: number;
