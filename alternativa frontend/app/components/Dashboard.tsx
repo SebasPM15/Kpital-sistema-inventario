@@ -31,6 +31,10 @@ import { Chart, LinearScale, CategoryScale, LineController, PointElement, LineEl
 import AlertConfig from './AlertConfig';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import ReportsSection from './ReportsSection';
+import { ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
+import { toast } from 'react-toastify';
 
 Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
@@ -75,39 +79,39 @@ interface ProductoData {
     STOCK_FISICO: number;
     UNIDADES_TRANSITO: number;
     STOCK_TOTAL: number;
-    
+
     // Consumos
     CONSUMO_PROMEDIO: number;
     CONSUMO_PROYECTADO: number;
     CONSUMO_TOTAL: number;
     CONSUMO_DIARIO: number;
     HISTORICO_CONSUMOS: Record<string, number>;
-    
+
     // Niveles de stock
     STOCK_SEGURIDAD: number;
     STOCK_MINIMO: number;
     PUNTO_REORDEN: number;
-    
+
     // Pedidos
     DEFICIT: number;
     CAJAS_A_PEDIR: number;
     UNIDADES_A_PEDIR: number;
-    
+
     // Tiempos
     FECHA_REPOSICION: string;
     DIAS_COBERTURA: number;
     FRECUENCIA_REPOSICION: number;
-    
+
     // Alertas
     alerta_stock: boolean;
     ULTIMA_ALERTA?: string; // Nuevo campo opcional
-    
+
     // Proyecciones
     PROYECCIONES: Proyeccion[];
-    
+
     // Configuración
     CONFIGURACION: ConfiguracionInventario;
-    
+
     // Campos adicionales para UI
     COLOR_ALERTA?: string; // Nuevo campo para UI
     ICONO_ESTADO?: string; // Nuevo campo para UI
@@ -174,7 +178,19 @@ const Dashboard = () => {
     const [isLoading, setIsLoading] = useState(true);
     const [showRegister, setShowRegister] = useState(false);
     const [showLogin, setShowLogin] = useState(true);  // El login es visible por defecto
+    const [activeComponent, setActiveComponent] = useState<string>('dashboard');
+    const [showReports, setShowReports] = useState(false);
 
+    const handleShowReports = () => {
+        setActiveComponent('reports');
+        setShowReports(true);
+        setSidebarOpen(false); // Cerrar el sidebar en dispositivos móviles
+    };
+
+    const handleCloseReports = () => {
+        setShowReports(false);
+        setActiveComponent('dashboard');
+    };
 
     // Refs
     const chartRef = useRef<HTMLDivElement>(null);
@@ -682,7 +698,7 @@ const Dashboard = () => {
 
             // Convertir datos mensuales a semanas
             const weeklyData = selectedPrediction.data.PROYECCIONES.flatMap(proyeccion => {
-                const semanas = [];
+                const semanas: { semana: string; stock: number; min: number; seguridad: number; consumo: number; }[] = [];
                 const consumoSemanal = proyeccion.consumo_mensual / 4;
                 let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
 
@@ -982,7 +998,7 @@ const Dashboard = () => {
                     // Solo aplicar estilo a la columna "Estado" (índice 6)
                     if (data.section === 'body' && data.column.index === 6) {
                         const isAlert = data.cell.raw === 'ALERTA';
-                        
+
                         // Colores corporativos
                         const primaryBlue = [0, 50, 104];    // #003268
                         const smoke = [237, 237, 237];       // #EDEDED
@@ -1067,26 +1083,192 @@ const Dashboard = () => {
     const handlePredict = async (codigo: string) => {
         setLoading(true);
         setError(null);
+    
         try {
-            const response = await axios.get<PredictionData>(`${API_URL}/predictions/${codigo}`);
-
-            if (!response.data?.data) {
-                throw new Error('Datos incompletos recibidos del servidor');
+            // 1. Obtener datos del usuario actual
+            const user = JSON.parse(localStorage.getItem('user') || '{}');
+            if (!user?.id) {
+                throw new Error('No se pudo identificar al usuario. Por favor, inicie sesión nuevamente.');
             }
-
+    
+            // 2. Obtener datos del producto
+            const producto = allPredictions.find((p) => p.CODIGO === codigo);
+            if (!producto) {
+                throw new Error(`Producto con código ${codigo} no encontrado`);
+            }
+    
+            // 3. Obtener predicción actualizada
+            const response = await axios.get<PredictionData>(`${API_URL}/predictions/${codigo}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            });
+    
+            if (!response.data?.data) {
+                throw new Error('No se recibieron datos válidos del servidor');
+            }
+    
             setSelectedPrediction(response.data);
             const { weekly, monthly } = generateChartData(response.data.data.PROYECCIONES);
             setWeeklyData(weekly);
             setMonthlyData(monthly);
-
+    
+            // 4. Manejo del producto
+            let productId;
+            try {
+                // Intentar obtener el producto existente
+                const existingProductRes = await axios.get(`${API_URL}/products?code=${encodeURIComponent(producto.CODIGO)}`, {
+                    headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                });
+    
+                if (existingProductRes.data?.data?.length > 0) {
+                    const existingProduct = existingProductRes.data.data.find((p: any) => p.code === producto.CODIGO);
+                    if (!existingProduct) {
+                        throw new Error('Producto encontrado pero no coincide con el código');
+                    }
+                    productId = existingProduct.id;
+                } else {
+                    // Crear nuevo producto
+                    const productData = {
+                        code: producto.CODIGO,
+                        description: producto.DESCRIPCION,
+                        totalStock: Math.floor(producto.STOCK_TOTAL),
+                        reorderPoint: Math.floor(producto.PUNTO_REORDEN),
+                        unitsToOrder: Math.floor(producto.UNIDADES_A_PEDIR),
+                    };
+    
+                    const productResponse = await axios.post(
+                        `${API_URL}/products`,
+                        productData,
+                        {
+                            headers: {
+                                Authorization: `Bearer ${localStorage.getItem('token')}`,
+                                'Content-Type': 'application/json',
+                            },
+                        }
+                    );
+    
+                    if (!productResponse.data?.success) {
+                        throw new Error(productResponse.data?.message || 'Error al crear el producto');
+                    }
+    
+                    productId = productResponse.data.data.id;
+                }
+            } catch (err: any) {
+                if (err.response?.status === 409) {
+                    // Reintentar obtener el producto en caso de conflicto
+                    const existingProductRes = await axios.get(`${API_URL}/products?code=${encodeURIComponent(producto.CODIGO)}`, {
+                        headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+                    });
+                    const existingProduct = existingProductRes.data.data.find((p: any) => p.code === producto.CODIGO);
+                    if (existingProduct) {
+                        productId = existingProduct.id;
+                    } else {
+                        throw new Error('No se pudo obtener el ID del producto existente');
+                    }
+                } else {
+                    throw new Error(err.response?.data?.message || 'Error al procesar el producto');
+                }
+            }
+    
+            if (!productId) {
+                throw new Error('No se pudo obtener el ID del producto');
+            }
+    
+            // 5. Validar reportes existentes para este producto
+            const today = new Date().toISOString().split('T')[0];
+            const reportsRes = await axios.get(`${API_URL}/reports?productId=${productId}`, {
+                headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
+            });
+    
+            if (!reportsRes.data?.success) {
+                throw new Error('Error al obtener los reportes existentes');
+            }
+    
+            const reports = reportsRes.data.data || [];
+            const userReportToday = reports.find((report: any) => {
+                const reportDate = new Date(report.createdAt).toISOString().split('T')[0];
+                return (
+                    report.productId === productId &&
+                    report.userId === user.id &&
+                    reportDate === today &&
+                    report.filename.includes(producto.CODIGO)
+                );
+            });
+    
+            if (userReportToday) {
+                toast.warn(
+                    `⚠️ Ya generaste un reporte para ${producto.CODIGO} hoy. ` +
+                    `Puedes verlo en la sección de reportes.`,
+                    { autoClose: 5000 }
+                );
+                return;
+            }
+    
+            // 6. Crear el nuevo reporte
+            const filename = `Reporte_${producto.CODIGO}_${today}_${user.id}.txt`;
+            const reportResponse = await axios.post(
+                `${API_URL}/reports`,
+                {
+                    filename,
+                    url: '#',
+                    productId,
+                    userId: user.id,
+                    content: JSON.stringify({
+                        ...response.data.data,
+                        generatedAt: new Date().toISOString(),
+                        productCode: producto.CODIGO,
+                        productDescription: producto.DESCRIPCION,
+                    }),
+                },
+                {
+                    headers: {
+                        Authorization: `Bearer ${localStorage.getItem('token')}`,
+                        'Content-Type': 'application/json',
+                    },
+                }
+            );
+    
+            if (!reportResponse.data.success) {
+                throw new Error(reportResponse.data.message || 'Error al crear el reporte');
+            }
+    
+            // 7. Mostrar mensaje apropiado
+            const otherReportsToday = reports.filter((report: any) => {
+                const reportDate = new Date(report.createdAt).toISOString().split('T')[0];
+                return (
+                    report.productId === productId &&
+                    report.userId !== user.id &&
+                    reportDate === today &&
+                    report.filename.includes(producto.CODIGO)
+                );
+            });
+    
+            if (otherReportsToday.length > 0) {
+                const otherUsers = [...new Set(otherReportsToday.map((r: any) => r.User?.nombre || 'Desconocido'))].join(', ');
+                toast.success(
+                    `✅ Reporte generado correctamente para ${producto.CODIGO}. ` +
+                    `Otros usuarios (${otherUsers}) también han generado reportes para este producto hoy.`,
+                    { autoClose: 6000 }
+                );
+            } else {
+                toast.success(`✅ Reporte generado exitosamente para ${producto.CODIGO}`, { autoClose: 4000 });
+            }
+    
+            setShowReports(false);
+    
         } catch (err: any) {
-            console.error('Error detallado:', err);
-            setError(err.response?.data?.error || err.message || 'Error al obtener la predicción');
+            console.error('Error en handlePredict:', err);
+            const errorMessage = err.response?.data?.message || err.message || 'Error al procesar el análisis';
+            toast.error(`❌ ${errorMessage}`, { autoClose: 5000 });
+    
+            if (err.response?.data?.errors) {
+                const validationErrors = err.response.data.errors.map((e: any) => e.message).join(', ');
+                toast.error(`Errores de validación: ${validationErrors}`, { autoClose: 7000 });
+            }
         } finally {
             setLoading(false);
         }
     };
-
+    
     const refreshPredictions = async () => {
         try {
             const response = await axios.get(`${API_URL}/predictions`);
@@ -1229,10 +1411,10 @@ const Dashboard = () => {
 
     const formatNumber = (value: number | undefined, decimals: number = 0) => {
         if (typeof value !== 'number' || isNaN(value)) return '-';
-        
+
         // Forzar número entero
         const integerValue = Math.floor(value);
-        
+
         return integerValue.toLocaleString('es-ES', {
             maximumFractionDigits: 0,  // Sin decimales
             useGrouping: true          // Con separadores de miles
@@ -1281,13 +1463,13 @@ const Dashboard = () => {
             >
                 <FaChevronLeft className="w-4 h-4" />
             </button>
-    
+
             <div className="flex items-center gap-2 bg-sky-50 px-6 py-2 rounded-full mx-2">
                 <span className="text-sm font-medium text-sky-700 whitespace-nowrap">
                     Página <span className="text-sky-800 font-bold">{currentPage}</span> de {totalPages}
                 </span>
             </div>
-    
+
             <button
                 onClick={() => setCurrentPage(Math.min(totalPages, currentPage + 1))}
                 disabled={currentPage === totalPages}
@@ -1880,6 +2062,8 @@ const Dashboard = () => {
 
     const Sidebar = () => {
         const [user, setUser] = useState<any>(null);
+        const [activeComponent, setActiveComponent] = useState<string>('dashboard');
+        const [showReports, setShowReports] = useState(false);
 
         useEffect(() => {
             const userData = localStorage.getItem('user');
@@ -1887,69 +2071,85 @@ const Dashboard = () => {
                 setUser(JSON.parse(userData));
             }
         }, []);
-        
-        return (        
-        <div className={`fixed inset-y-0 left-0 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-200 ease-in-out z-40 w-64`}>
-            <div className="flex flex-col items-center justify-center p-4 border-b border-gray-200">
-                <div className="flex items-center space-x-2">
-                    <FaChartLine className="text-[#0074CF] text-2xl" />
-                    <span className="text-xl font-gotham-bold text-[#001A30] text-center">
-                        Plannink<br />2020 - 2025
-                    </span>
-                </div>
-                <button
-                    onClick={() => setSidebarOpen(false)}
-                    className="absolute top-4 right-4 text-[#0074CF] hover:text-[#001A30]"
-                >
-                    <FaChevronLeft className="w-4 h-4" />
-                </button>
-            </div>
 
-            <UserProfile user={user} />
 
-            <nav className="p-4">
-                <div className="space-y-1">
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg bg-[#EDEDED] text-[#003268] font-gotham-medium">
-                        <FaHome className="text-[#0074CF]" />
-                        <span>Dashboard</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaWarehouse className="text-[#0074CF]" />
-                        <span>Inventario</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaClipboardList className="text-[#0074CF]" />
-                        <span>Órdenes</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaChartBar className="text-[#0074CF]" />
-                        <span>Reportes</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaFileAlt className="text-[#0074CF]" />
-                        <span>Documentación</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaExchangeAlt className="text-[#0074CF]" />
-                        <span>Movimientos</span>
-                    </a>
-                    <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                        <FaCog className="text-[#0074CF]" />
-                        <span>Configuración</span>
-                    </a>
-                </div>
 
-                <div className="mt-8 pt-4 border-t border-gray-200">
+        return (
+            <div className={`fixed inset-y-0 left-0 bg-white shadow-lg transform ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'} transition-transform duration-200 ease-in-out z-40 w-64`}>
+                <div className="flex flex-col items-center justify-center p-4 border-b border-gray-200">
+                    <div className="flex items-center space-x-2">
+                        <FaChartLine className="text-[#0074CF] text-2xl" />
+                        <span className="text-xl font-gotham-bold text-[#001A30] text-center">
+                            Plannink<br />2020 - 2025
+                        </span>
+                    </div>
                     <button
-                        onClick={handleLogout}
-                        className="flex items-center w-full space-x-3 p-2 rounded-lg text-red-600 hover:bg-red-50 font-gotham-regular transition-colors"
+                        onClick={() => setSidebarOpen(false)}
+                        className="absolute top-4 right-4 text-[#0074CF] hover:text-[#001A30]"
                     >
-                        <FaSignOutAlt className="text-red-500" />
-                        <span>Cerrar Sesión</span>
+                        <FaChevronLeft className="w-4 h-4" />
                     </button>
                 </div>
-            </nav>
-        </div>
+
+                <UserProfile user={user} />
+
+                <nav className="p-4">
+                    <div className="space-y-1">
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg bg-[#EDEDED] text-[#003268] font-gotham-medium">
+                            <FaHome className="text-[#0074CF]" />
+                            <span>Dashboard</span>
+                        </a>
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
+                            <FaWarehouse className="text-[#0074CF]" />
+                            <span>Inventario</span>
+                        </a>
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
+                            <FaClipboardList className="text-[#0074CF]" />
+                            <span>Órdenes</span>
+                        </a>
+
+
+                        <button
+                            onClick={handleShowReports}
+                            className={`flex items-center space-x-3 p-2 rounded-lg w-full text-left ${activeComponent === 'reports'
+                                ? 'bg-[#EDEDED] text-[#003268]'
+                                : 'text-[#001A30] hover:bg-[#EDEDED]'
+                                } font-gotham-regular`}
+                        >
+                            <FaChartBar className="text-[#0074CF]" />
+                            <span>Reportes</span>
+                            {activeComponent === 'reports' && (
+                                <span className="ml-auto bg-[#0074CF] text-white text-xs px-2 py-1 rounded-full">
+                                    Nuevo
+                                </span>
+                            )}
+                        </button>
+
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
+                            <FaFileAlt className="text-[#0074CF]" />
+                            <span>Documentación</span>
+                        </a>
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
+                            <FaExchangeAlt className="text-[#0074CF]" />
+                            <span>Movimientos</span>
+                        </a>
+                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
+                            <FaCog className="text-[#0074CF]" />
+                            <span>Configuración</span>
+                        </a>
+                    </div>
+
+                    <div className="mt-8 pt-4 border-t border-gray-200">
+                        <button
+                            onClick={handleLogout}
+                            className="flex items-center w-full space-x-3 p-2 rounded-lg text-red-600 hover:bg-red-50 font-gotham-regular transition-colors"
+                        >
+                            <FaSignOutAlt className="text-red-500" />
+                            <span>Cerrar Sesión</span>
+                        </button>
+                    </div>
+                </nav>
+            </div>
         );
     };
 
@@ -2282,19 +2482,19 @@ const Dashboard = () => {
                                             </thead>
                                             <tbody>
                                                 {producto.PROYECCIONES.map((proyeccion, index) => {
-                                                    const stockInicial = index === 0 
-                                                        ? producto.STOCK_TOTAL 
-                                                        : producto.PROYECCIONES[index-1].stock_proyectado;
-                                                    
+                                                    const stockInicial = index === 0
+                                                        ? producto.STOCK_TOTAL
+                                                        : producto.PROYECCIONES[index - 1].stock_proyectado;
+
                                                     // Pedidos que llegan ESTE mes (ordenados el mes anterior)
-                                                    const pedidosRecibidos = index > 0 
-                                                        ? producto.PROYECCIONES[index-1].unidades_a_pedir || 0
+                                                    const pedidosRecibidos = index > 0
+                                                        ? producto.PROYECCIONES[index - 1].unidades_a_pedir || 0
                                                         : 0;
 
                                                     // Pedidos pendientes para meses FUTUROS (los que se ordenan este mes)
                                                     const pedidosPendientes = proyeccion.unidades_a_pedir > 0
                                                         ? [{
-                                                            mes: producto.PROYECCIONES[index+1]?.mes || 'Siguiente',
+                                                            mes: producto.PROYECCIONES[index + 1]?.mes || 'Siguiente',
                                                             unidades: proyeccion.unidades_a_pedir
                                                         }]
                                                         : [];
@@ -2327,7 +2527,7 @@ const Dashboard = () => {
                                                             <td className="text-center">
                                                                 {pedidosPendientes.length > 0 ? (
                                                                     <div className="flex flex-col gap-1 items-center">
-                                                                        {pedidosPendientes.map(({mes, unidades}) => (
+                                                                        {pedidosPendientes.map(({ mes, unidades }) => (
                                                                             <div key={mes} className="flex items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
                                                                                 <FaTruckLoading className="text-[#0074CF]" />
                                                                                 {mes}: {formatNumber(unidades)} unid.
@@ -2365,7 +2565,7 @@ const Dashboard = () => {
                                             Dinámica del Inventario
                                         </h4>
                                     </div>
-                                    
+
                                     <div className="p-4 grid gap-4 md:grid-cols-2">
 
                                         <div className="bg-[#00B0F0]/10 border-l-4 border-[#00B0F0] p-3">
@@ -2585,31 +2785,31 @@ const Dashboard = () => {
             e.preventDefault();
             setLoading(true);
             setError('');
-        
+
             try {
                 const response = await axios.post(`${API_URL}/auth/login`, {
                     email,
                     password
                 });
-        
+
                 const { token, user } = response.data;
-        
+
                 if (token) {
                     // Verificar en la base de datos
                     const verifyResponse = await axios.get(`${API_URL}/auth/email/${email}`, {
                         headers: { Authorization: `Bearer ${token}` }
                     });
-        
+
                     const userFromDB = verifyResponse.data;
-        
+
                     if (!userFromDB || userFromDB.email !== email) {
                         setError('Usuario no encontrado en la base de datos.');
                         return;
                     }
-        
+
                     // Verificar si hay usuario en localStorage
                     const userFromLocalStorage = localStorage.getItem('user');
-        
+
                     if (!userFromLocalStorage) {
                         // El usuario existe en la BD pero no en el localStorage → lo sincronizamos
                         localStorage.setItem('user', JSON.stringify(userFromDB));
@@ -2617,9 +2817,9 @@ const Dashboard = () => {
                         onLogin();
                         return;
                     }
-        
+
                     const parsedLocalUser = JSON.parse(userFromLocalStorage);
-        
+
                     // Comparar IDs o emails
                     if (parsedLocalUser.email !== userFromDB.email) {
                         setError('El usuario en localStorage no coincide con el de la base de datos.');
@@ -2627,7 +2827,7 @@ const Dashboard = () => {
                         localStorage.removeItem('token');
                         return;
                     }
-        
+
                     // Todo bien, continuar
                     localStorage.setItem('token', token); // Actualizar si hace falta
                     localStorage.setItem('user', JSON.stringify(userFromDB));
@@ -2635,7 +2835,7 @@ const Dashboard = () => {
                 } else {
                     setError('Credenciales inválidas.');
                 }
-        
+
             } catch (err: any) {
                 console.error('Login error:', err);
                 setError(err.response?.data?.message || 'Error al iniciar sesión');
@@ -2643,16 +2843,16 @@ const Dashboard = () => {
                 setLoading(false);
             }
         };
-        
+
 
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
                 <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
                     {/* Header con gradiente corporativo */}
                     <div className="flex flex-col items-center p-6">
-                        <img 
-                            src="/Logo_Kpital.jpg" 
-                            alt="Logo Kpital" 
+                        <img
+                            src="/Logo_Kpital.jpg"
+                            alt="Logo Kpital"
                             className="h-16 mb-3 object-contain"
                         />
                         <h1 className="text-2xl font-bold text-[#0074CF]">Iniciar Sesión</h1>
@@ -2801,7 +3001,7 @@ const Dashboard = () => {
                 setError('El número de celular debe tener exactamente 10 dígitos');
                 setLoading(false);
                 return;
-            }            
+            }
 
             try {
                 const response = await axios.post(`${API_URL}/auth/register`, {
@@ -2835,9 +3035,9 @@ const Dashboard = () => {
                 <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
                     {/* Header con gradiente corporativo */}
                     <div className="flex flex-col items-center p-6">
-                        <img 
-                            src="/Logo_Kpital.jpg" 
-                            alt="Logo Kpital" 
+                        <img
+                            src="/Logo_Kpital.jpg"
+                            alt="Logo Kpital"
                             className="h-16 mb-3 object-contain"
                         />
                         <h1 className="text-2xl font-bold text-[#0074CF]">Crear Cuenta</h1>
@@ -3006,16 +3206,16 @@ const Dashboard = () => {
         const inputRef = useRef<HTMLInputElement>(null);
         const [showSuggestions, setShowSuggestions] = useState(false);
         const [activeSuggestion, setActiveSuggestion] = useState(-1);
-    
+
         useEffect(() => {
             if (inputRef.current) {
                 inputRef.current.focus();
             }
         }, []);
-    
+
         const getSuggestions = () => {
             if (!searchTerm) return [];
-    
+
             return filteredPredictions
                 .filter(producto =>
                     producto.CODIGO.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -3023,16 +3223,16 @@ const Dashboard = () => {
                 )
                 .slice(0, 5);
         };
-    
+
         const suggestions = getSuggestions();
-    
+
         const handleSuggestionClick = (producto: ProductoData) => {
             setSearchTerm(producto.CODIGO);
             setShowSuggestions(false);
             inputRef.current?.focus();
             handlePredict(producto.CODIGO);
         };
-    
+
         const handleKeyDown = (e: React.KeyboardEvent) => {
             if (e.key === 'Escape') {
                 setSearchTerm('');
@@ -3052,7 +3252,7 @@ const Dashboard = () => {
                 handleSuggestionClick(suggestions[activeSuggestion]);
             }
         };
-    
+
         return (
             <div className="relative w-full max-w-md mb-6">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -3085,7 +3285,7 @@ const Dashboard = () => {
                         <FaTimes className="text-gray-400 hover:text-gray-600" />
                     </button>
                 )}
-    
+
                 {/* Panel de sugerencias */}
                 {showSuggestions && suggestions.length > 0 && (
                     <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-60 overflow-auto">
@@ -3093,9 +3293,8 @@ const Dashboard = () => {
                             {suggestions.map((producto, index) => (
                                 <li
                                     key={producto.CODIGO}
-                                    className={`px-4 py-2 hover:bg-blue-50 cursor-pointer ${
-                                        index === activeSuggestion ? 'bg-blue-100' : ''
-                                    }`}
+                                    className={`px-4 py-2 hover:bg-blue-50 cursor-pointer ${index === activeSuggestion ? 'bg-blue-100' : ''
+                                        }`}
                                     onClick={() => handleSuggestionClick(producto)}
                                     onMouseEnter={() => setActiveSuggestion(index)}
                                 >
@@ -3110,7 +3309,7 @@ const Dashboard = () => {
                         </ul>
                     </div>
                 )}
-    
+
                 {showSuggestions && searchTerm && suggestions.length === 0 && (
                     <div className="absolute z-10 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg px-4 py-2 text-gray-500">
                         No se encontraron productos
@@ -3174,6 +3373,7 @@ const Dashboard = () => {
     // Render principal
     return (
         <div className="flex h-screen bg-gray-50">
+            <ToastContainer position="top-right" autoClose={3000} />
 
             <Sidebar />
 
@@ -3188,204 +3388,223 @@ const Dashboard = () => {
                 )}
 
                 <main className="flex-1 overflow-y-auto p-6">
-                    {!excelSubido || allPredictions.length === 0 ? (
-                        <FileUploader />
-                    ) : (
-                        <>
+
+                    {showReports ? (
+                        <div className="bg-white rounded-xl shadow-lg p-6">
                             <div className="flex justify-between items-center mb-6">
-                                <div>
-                                    <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
-                                        <GiReceiveMoney className="text-sky-600 w-8 h-8" />
-                                        <span className="bg-gradient-to-r from-sky-600 to-blue-500 bg-clip-text text-transparent">
-                                            Análisis de Inventario
-                                        </span>
-                                    </h1>
-                                    <p className="text-sm text-gray-500 mt-1">
-                                        Gestión inteligente de stock y proyecciones de la demanda
-                                    </p>
-                                </div>
+                                <h1 className="text-2xl font-bold text-gray-800 flex items-center gap-3">
+                                    <FaChartBar className="text-blue-600" />
+                                    Gestión de Reportes
+                                </h1>
                                 <button
-                                    onClick={() => {
-                                        setAllPredictions([]);
-                                        setExcelSubido(false);
-                                    }}
-                                    className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg flex items-center gap-2 shadow-sm"
+                                    onClick={handleCloseReports}
+                                    className="p-2 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                                    title="Volver al dashboard"
                                 >
-                                    <FaFileUpload />
-                                    Cargar Nuevo Archivo
+                                    <FaTimes className="w-5 h-5" />
                                 </button>
                             </div>
-
-                            {error && (
-                                <div className="mb-4 p-4 bg-rose-100 text-rose-700 rounded-lg flex items-center gap-2 shadow-sm">
-                                    <FiAlertTriangle className="flex-shrink-0" />
-                                    {error}
-                                </div>
-                            )}
-
-                            {selectedPrediction && <DetailModal
-                                onClose={handleCloseModal}
-                                selectedPrediction={selectedPrediction}
-                                refreshPredictions={refreshPredictions}
-                            />}
-
-                            <div className="bg-white rounded-xl shadow-lg border border-slate-200">
-                                <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 rounded-t-xl">
-                                    <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
-                                        <div className="flex items-center gap-2">
-                                            <FaBoxOpen className="text-sky-600 text-xl" />
-                                            <h2 className="text-xl font-semibold text-slate-700 whitespace-nowrap">
-                                                Productos Analizados
-                                                <span className="text-slate-500 font-normal ml-1">({filteredPredictions.length})</span>
-                                            </h2>
-                                        </div>
-                                        <span className="text-sm text-slate-500 md:ml-2">
-                                            Archivo: <span className="font-medium">{currentExcel}</span>
-                                        </span>
+                            <ReportsSection />
+                        </div>
+                    ) : (
+                        !excelSubido || allPredictions.length === 0 ? (
+                            <FileUploader />
+                        ) : (
+                            <>
+                                <div className="flex justify-between items-center mb-6">
+                                    <div>
+                                        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+                                            <GiReceiveMoney className="text-sky-600 w-8 h-8" />
+                                            <span className="bg-gradient-to-r from-sky-600 to-blue-500 bg-clip-text text-transparent">
+                                                Análisis de Inventario
+                                            </span>
+                                        </h1>
+                                        <p className="text-sm text-gray-500 mt-1">
+                                            Gestión inteligente de stock y proyecciones de la Demanda
+                                        </p>
                                     </div>
-
-                                    <div className="w-full md:w-auto flex flex-col md:flex-row gap-4 items-stretch md:items-center">
-                                        <div className="flex-grow md:w-64">
-                                            <SearchBar />
-                                        </div>
-                                        <div className="flex-shrink-0">
-                                            <PaginationControls />
-                                        </div>
-                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            setAllPredictions([]);
+                                            setExcelSubido(false);
+                                        }}
+                                        className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-slate-700 rounded-lg flex items-center gap-2 shadow-sm"
+                                    >
+                                        <FaFileUpload />
+                                        Cargar Nuevo Archivo
+                                    </button>
                                 </div>
 
-                                <div className="overflow-x-auto">
-                                    <table className="w-full">
-                                        <thead className="bg-slate-50">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left text-sm text-slate-600 font-medium">Código</th>
-                                                <th className="px-4 py-3 text-left text-sm text-slate-600 font-medium">Descripción</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Unidad/Caja</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Stock Total</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Cons. Prom.</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Pto. Reorden</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">A Pedir</th>
-                                                <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Acciones</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-100">
-                                            {currentPredictions.length > 0 ? (
-                                                currentPredictions.map((producto) => {
-                                                    const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO || 0);
-                                                    const status = getStockStatus(
-                                                        stockTotal,
-                                                        producto.STOCK_SEGURIDAD,
-                                                        producto.PUNTO_REORDEN
-                                                    );
-                                                    const diasCobertura = calculateDaysOfCoverage(
-                                                        stockTotal,
-                                                        producto.CONSUMO_DIARIO
-                                                    );
+                                {error && (
+                                    <div className="mb-4 p-4 bg-rose-100 text-rose-700 rounded-lg flex items-center gap-2 shadow-sm">
+                                        <FiAlertTriangle className="flex-shrink-0" />
+                                        {error}
+                                    </div>
+                                )}
 
-                                                    return (
-                                                        <tr key={producto.CODIGO} className="hover:bg-slate-50 transition-colors">
-                                                            <td className="px-4 py-3 font-medium text-slate-800">
-                                                                {highlightMatches(producto.CODIGO, searchTerm)}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">
-                                                                {highlightMatches(producto.DESCRIPCION, searchTerm)}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <span className="bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full text-sm inline-flex items-center gap-1 shadow-sm">
-                                                                    <FaCube className="w-3.5 h-3.5" />
-                                                                    {formatNumber(producto.UNIDADES_POR_CAJA)} unid.
-                                                                </span>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <div className="flex flex-col items-center">
-                                                                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${status === 'danger' ? 'bg-red-100 text-red-700' :
-                                                                        status === 'warning' ? 'bg-amber-100 text-amber-700' :
-                                                                            'bg-emerald-100 text-emerald-700'
-                                                                        } shadow-sm`}>
-                                                                        {formatNumber(stockTotal)} unid.
-                                                                    </span>
-                                                                    <div className="flex gap-2 text-xs text-slate-500 mt-1">
-                                                                        <span className="flex items-center">
-                                                                            <FaBox className="mr-1" />
-                                                                            {formatNumber(producto.STOCK_FISICO)}
-                                                                        </span>
-                                                                        {producto.UNIDADES_TRANSITO > 0 && (
-                                                                            <span className="flex items-center text-blue-600">
-                                                                                <FaTruck className="mr-1" />
-                                                                                +{formatNumber(producto.UNIDADES_TRANSITO)}
-                                                                            </span>
-                                                                        )}
-                                                                        <span>| {diasCobertura} días</span>
-                                                                    </div>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center text-sm text-gray-600">
-                                                                {formatNumber(producto.CONSUMO_PROMEDIO)}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <div className="flex flex-col items-center">
-                                                                    <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs shadow-sm">
-                                                                        {formatNumber(producto.PUNTO_REORDEN)}
-                                                                    </span>
-                                                                </div>
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                {producto.CAJAS_A_PEDIR > 0 ? (
-                                                                    <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium shadow-sm">
-                                                                        {producto.CAJAS_A_PEDIR} cajas
-                                                                    </span>
-                                                                ) : (
-                                                                    <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs shadow-sm">
-                                                                        OK
-                                                                    </span>
-                                                                )}
-                                                            </td>
-                                                            <td className="px-4 py-3 text-center">
-                                                                <button
-                                                                    onClick={() => handlePredict(producto.CODIGO)}
-                                                                    className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
-                                                                    disabled={loading}
-                                                                >
-                                                                    {loading && selectedPrediction?.data.CODIGO === producto.CODIGO ? (
-                                                                        <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
-                                                                    ) : (
-                                                                        <FiAlertTriangle className="w-4 h-4" />
-                                                                    )}
-                                                                    Ver Análisis
-                                                                </button>
-                                                            </td>
-                                                        </tr>
-                                                    );
-                                                })
-                                            ) : (
+                                {selectedPrediction && <DetailModal
+                                    onClose={handleCloseModal}
+                                    selectedPrediction={selectedPrediction}
+                                    refreshPredictions={refreshPredictions}
+                                />}
+
+                                <div className="bg-white rounded-xl shadow-lg border border-slate-200">
+                                    <div className="p-4 border-b border-slate-200 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50 rounded-t-xl">
+                                        <div className="flex flex-col md:flex-row md:items-center gap-3 w-full md:w-auto">
+                                            <div className="flex items-center gap-2">
+                                                <FaBoxOpen className="text-sky-600 text-xl" />
+                                                <h2 className="text-xl font-semibold text-slate-700 whitespace-nowrap">
+                                                    Productos Analizados
+                                                    <span className="text-slate-500 font-normal ml-1">({filteredPredictions.length})</span>
+                                                </h2>
+                                            </div>
+                                            <span className="text-sm text-slate-500 md:ml-2">
+                                                Archivo: <span className="font-medium">{currentExcel}</span>
+                                            </span>
+                                        </div>
+
+                                        <div className="w-full md:w-auto flex flex-col md:flex-row gap-4 items-stretch md:items-center">
+                                            <div className="flex-grow md:w-64">
+                                                <SearchBar />
+                                            </div>
+                                            <div className="flex-shrink-0">
+                                                <PaginationControls />
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full">
+                                            <thead className="bg-slate-50">
                                                 <tr>
-                                                    <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
-                                                        {searchTerm ? (
-                                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                                <FaSearch className="text-gray-400 text-2xl" />
-                                                                <span>No se encontraron productos que coincidan con <strong>"{searchTerm}"</strong></span>
-                                                                <button
-                                                                    onClick={() => setSearchTerm('')}
-                                                                    className="mt-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
-                                                                >
-                                                                    Limpiar búsqueda
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <div className="flex flex-col items-center justify-center gap-2">
-                                                                <FaBoxOpen className="text-gray-400 text-2xl" />
-                                                                <span>No hay productos disponibles</span>
-                                                            </div>
-                                                        )}
-                                                    </td>
+                                                    <th className="px-4 py-3 text-left text-sm text-slate-600 font-medium">Código</th>
+                                                    <th className="px-4 py-3 text-left text-sm text-slate-600 font-medium">Descripción</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Unidad/Caja</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Stock Total</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Cons. Prom.</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Pto. Reorden</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">A Pedir</th>
+                                                    <th className="px-4 py-3 text-center text-sm text-slate-600 font-medium">Acciones</th>
                                                 </tr>
-                                            )}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {currentPredictions.length > 0 ? (
+                                                    currentPredictions.map((producto) => {
+                                                        const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO || 0);
+                                                        const status = getStockStatus(
+                                                            stockTotal,
+                                                            producto.STOCK_SEGURIDAD,
+                                                            producto.PUNTO_REORDEN
+                                                        );
+                                                        const diasCobertura = calculateDaysOfCoverage(
+                                                            stockTotal,
+                                                            producto.CONSUMO_DIARIO
+                                                        );
+
+                                                        return (
+                                                            <tr key={producto.CODIGO} className="hover:bg-slate-50 transition-colors">
+                                                                <td className="px-4 py-3 font-medium text-slate-800">
+                                                                    {highlightMatches(producto.CODIGO, searchTerm)}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-slate-600 max-w-[200px] truncate">
+                                                                    {highlightMatches(producto.DESCRIPCION, searchTerm)}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <span className="bg-sky-100 text-sky-700 px-2.5 py-1 rounded-full text-sm inline-flex items-center gap-1 shadow-sm">
+                                                                        <FaCube className="w-3.5 h-3.5" />
+                                                                        {formatNumber(producto.UNIDADES_POR_CAJA)} unid.
+                                                                    </span>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className={`px-3 py-1 rounded-full text-sm font-medium ${status === 'danger' ? 'bg-red-100 text-red-700' :
+                                                                            status === 'warning' ? 'bg-amber-100 text-amber-700' :
+                                                                                'bg-emerald-100 text-emerald-700'
+                                                                            } shadow-sm`}>
+                                                                            {formatNumber(stockTotal)} unid.
+                                                                        </span>
+                                                                        <div className="flex gap-2 text-xs text-slate-500 mt-1">
+                                                                            <span className="flex items-center">
+                                                                                <FaBox className="mr-1" />
+                                                                                {formatNumber(producto.STOCK_FISICO)}
+                                                                            </span>
+                                                                            {producto.UNIDADES_TRANSITO > 0 && (
+                                                                                <span className="flex items-center text-blue-600">
+                                                                                    <FaTruck className="mr-1" />
+                                                                                    +{formatNumber(producto.UNIDADES_TRANSITO)}
+                                                                                </span>
+                                                                            )}
+                                                                            <span>| {diasCobertura} días</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center text-sm text-gray-600">
+                                                                    {formatNumber(producto.CONSUMO_PROMEDIO)}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <div className="flex flex-col items-center">
+                                                                        <span className="bg-purple-100 text-purple-700 px-2 py-1 rounded-full text-xs shadow-sm">
+                                                                            {formatNumber(producto.PUNTO_REORDEN)}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    {producto.CAJAS_A_PEDIR > 0 ? (
+                                                                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium shadow-sm">
+                                                                            {producto.CAJAS_A_PEDIR} cajas
+                                                                        </span>
+                                                                    ) : (
+                                                                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs shadow-sm">
+                                                                            OK
+                                                                        </span>
+                                                                    )}
+                                                                </td>
+                                                                <td className="px-4 py-3 text-center">
+                                                                    <button
+                                                                        onClick={() => handlePredict(producto.CODIGO)}
+                                                                        className="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-all flex items-center justify-center gap-2 text-sm shadow-sm"
+                                                                        disabled={loading}
+                                                                    >
+                                                                        {loading && selectedPrediction?.data.CODIGO === producto.CODIGO ? (
+                                                                            <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full" />
+                                                                        ) : (
+                                                                            <FiAlertTriangle className="w-4 h-4" />
+                                                                        )}
+                                                                        Ver Análisis
+                                                                    </button>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                ) : (
+                                                    <tr>
+                                                        <td colSpan={8} className="px-4 py-8 text-center text-gray-500">
+                                                            {searchTerm ? (
+                                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                                    <FaSearch className="text-gray-400 text-2xl" />
+                                                                    <span>No se encontraron productos que coincidan con <strong>"{searchTerm}"</strong></span>
+                                                                    <button
+                                                                        onClick={() => setSearchTerm('')}
+                                                                        className="mt-2 px-3 py-1 text-sm text-blue-600 hover:text-blue-800"
+                                                                    >
+                                                                        Limpiar búsqueda
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex flex-col items-center justify-center gap-2">
+                                                                    <FaBoxOpen className="text-gray-400 text-2xl" />
+                                                                    <span>No hay productos disponibles</span>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
-                            </div>
-                        </>
-                    )}
+                            </>
+                        ))};
                 </main>
             </div>
         </div>

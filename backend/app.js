@@ -12,6 +12,8 @@ import authRoutes from './routes/auth.routes.js';
 import verifyToken from './middlewares/auth.middleware.js';
 import sequelize from './config/db.js';
 import User from './models/user.model.js'; // Importa tus modelos
+import reportsRouter from './routes/reports.routes.js';
+import productsRouter from './routes/products.routes.js';
 
 // Configuración del puerto
 const PORT = process.env.PORT || 3500;
@@ -46,23 +48,16 @@ app.use(express.urlencoded({ extended: true }));
 // Función mejorada para sincronizar la base de datos
 const syncDatabase = async () => {
     try {
-        // En producción solo sincroniza sin forzar
-        // En desarrollo puedes usar { force: true } para recrear tablas (cuidado con los datos)
         const syncOptions = {
             force: process.env.NODE_ENV === 'development' ? false : false,
             alter: process.env.NODE_ENV === 'development' ? true : false
         };
-
         await sequelize.sync(syncOptions);
         logger.info('✅ Base de datos sincronizada correctamente');
-        
-        // Verifica que la tabla Users exista
         await User.findOne({ limit: 1 });
         logger.info('✅ Modelo User verificado correctamente');
-        
     } catch (error) {
         logger.error('❌ Error al sincronizar la base de datos:', error);
-        // No salimos del proceso para permitir reintentos
     }
 };
 
@@ -95,6 +90,8 @@ export const testDBConnection = async () => {
 app.use('/api/auth', authRoutes);
 app.use('/api/predictions', limiter, predictionsRouter);
 app.use('/api/alertas', alertRoutes);
+app.use('/api/reports', reportsRouter);
+app.use('/api/products', productsRouter);
 
 app.get('/api/protected', verifyToken, (req, res) => {
     res.json({ message: 'Ruta protegida', user: req.user });
