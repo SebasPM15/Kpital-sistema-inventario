@@ -19,14 +19,15 @@ import {
     FaLock,
     FaSpinner,
     FaPhone,
-    FaTruckLoading
+    FaTruckLoading,
+    FaChevronDown
 } from 'react-icons/fa';
 import { FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, BarChart, Bar, Cell, Area, ReferenceLine } from 'recharts';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { motion } from 'framer-motion';
+import { AnimatePresence, motion } from 'framer-motion';
 import { Chart, LinearScale, CategoryScale, LineController, PointElement, LineElement, Title } from 'chart.js';
 import AlertConfig from './AlertConfig';
 import Link from 'next/link';
@@ -180,6 +181,54 @@ const Dashboard = () => {
     const [showLogin, setShowLogin] = useState(true);  // El login es visible por defecto
     const [activeComponent, setActiveComponent] = useState<string>('dashboard');
     const [showReports, setShowReports] = useState(false);
+    const [isDocsOpen, setIsDocsOpen] = useState(false);
+
+    const toggleDocsMenu = () => {
+        setIsDocsOpen(!isDocsOpen);
+    };
+
+    // Variantes para la animación del menú desplegable
+    const menuVariants = {
+        open: {
+            opacity: 1,
+            height: 'auto',
+            transition: {
+                duration: 0.3,
+                ease: 'easeInOut',
+                when: 'beforeChildren',
+                staggerChildren: 0.1
+            }
+        },
+        closed: {
+            opacity: 0,
+            height: 0,
+            transition: {
+                duration: 0.2,
+                ease: 'easeInOut',
+                when: 'afterChildren'
+            }
+        }
+    };
+
+    // Variantes para los elementos del menú
+    const itemVariants = {
+        open: {
+            y: 0,
+            opacity: 1,
+            transition: {
+                duration: 0.3,
+                ease: 'easeOut'
+            }
+        },
+        closed: {
+            y: -10,
+            opacity: 0,
+            transition: {
+                duration: 0.2,
+                ease: 'easeIn'
+            }
+        }
+    };
 
     const handleShowReports = () => {
         setActiveComponent('reports');
@@ -1083,34 +1132,34 @@ const Dashboard = () => {
     const handlePredict = async (codigo: string) => {
         setLoading(true);
         setError(null);
-    
+
         try {
             // 1. Obtener datos del usuario actual
             const user = JSON.parse(localStorage.getItem('user') || '{}');
             if (!user?.id) {
                 throw new Error('No se pudo identificar al usuario. Por favor, inicie sesión nuevamente.');
             }
-    
+
             // 2. Obtener datos del producto
             const producto = allPredictions.find((p) => p.CODIGO === codigo);
             if (!producto) {
                 throw new Error(`Producto con código ${codigo} no encontrado`);
             }
-    
+
             // 3. Obtener predicción actualizada
             const response = await axios.get<PredictionData>(`${API_URL}/predictions/${codigo}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             });
-    
+
             if (!response.data?.data) {
                 throw new Error('No se recibieron datos válidos del servidor');
             }
-    
+
             setSelectedPrediction(response.data);
             const { weekly, monthly } = generateChartData(response.data.data.PROYECCIONES);
             setWeeklyData(weekly);
             setMonthlyData(monthly);
-    
+
             // 4. Manejo del producto
             let productId;
             try {
@@ -1118,7 +1167,7 @@ const Dashboard = () => {
                 const existingProductRes = await axios.get(`${API_URL}/products?code=${encodeURIComponent(producto.CODIGO)}`, {
                     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
                 });
-    
+
                 if (existingProductRes.data?.data?.length > 0) {
                     const existingProduct = existingProductRes.data.data.find((p: any) => p.code === producto.CODIGO);
                     if (!existingProduct) {
@@ -1134,7 +1183,7 @@ const Dashboard = () => {
                         reorderPoint: Math.floor(producto.PUNTO_REORDEN),
                         unitsToOrder: Math.floor(producto.UNIDADES_A_PEDIR),
                     };
-    
+
                     const productResponse = await axios.post(
                         `${API_URL}/products`,
                         productData,
@@ -1145,11 +1194,11 @@ const Dashboard = () => {
                             },
                         }
                     );
-    
+
                     if (!productResponse.data?.success) {
                         throw new Error(productResponse.data?.message || 'Error al crear el producto');
                     }
-    
+
                     productId = productResponse.data.data.id;
                 }
             } catch (err: any) {
@@ -1168,21 +1217,21 @@ const Dashboard = () => {
                     throw new Error(err.response?.data?.message || 'Error al procesar el producto');
                 }
             }
-    
+
             if (!productId) {
                 throw new Error('No se pudo obtener el ID del producto');
             }
-    
+
             // 5. Validar reportes existentes para este producto
             const today = new Date().toISOString().split('T')[0];
             const reportsRes = await axios.get(`${API_URL}/reports?productId=${productId}`, {
                 headers: { Authorization: `Bearer ${localStorage.getItem('token')}` },
             });
-    
+
             if (!reportsRes.data?.success) {
                 throw new Error('Error al obtener los reportes existentes');
             }
-    
+
             const reports = reportsRes.data.data || [];
             const userReportToday = reports.find((report: any) => {
                 const reportDate = new Date(report.createdAt).toISOString().split('T')[0];
@@ -1193,7 +1242,7 @@ const Dashboard = () => {
                     report.filename.includes(producto.CODIGO)
                 );
             });
-    
+
             if (userReportToday) {
                 toast.warn(
                     `⚠️ Ya generaste un reporte para ${producto.CODIGO} hoy. ` +
@@ -1202,7 +1251,7 @@ const Dashboard = () => {
                 );
                 return;
             }
-    
+
             // 6. Crear el nuevo reporte
             const filename = `Reporte_${producto.CODIGO}_${today}_${user.id}.txt`;
             const reportResponse = await axios.post(
@@ -1226,11 +1275,11 @@ const Dashboard = () => {
                     },
                 }
             );
-    
+
             if (!reportResponse.data.success) {
                 throw new Error(reportResponse.data.message || 'Error al crear el reporte');
             }
-    
+
             // 7. Mostrar mensaje apropiado
             const otherReportsToday = reports.filter((report: any) => {
                 const reportDate = new Date(report.createdAt).toISOString().split('T')[0];
@@ -1241,7 +1290,7 @@ const Dashboard = () => {
                     report.filename.includes(producto.CODIGO)
                 );
             });
-    
+
             if (otherReportsToday.length > 0) {
                 const otherUsers = [...new Set(otherReportsToday.map((r: any) => r.User?.nombre || 'Desconocido'))].join(', ');
                 toast.success(
@@ -1252,14 +1301,14 @@ const Dashboard = () => {
             } else {
                 toast.success(`✅ Reporte generado exitosamente para ${producto.CODIGO}`, { autoClose: 4000 });
             }
-    
+
             setShowReports(false);
-    
+
         } catch (err: any) {
             console.error('Error en handlePredict:', err);
             const errorMessage = err.response?.data?.message || err.message || 'Error al procesar el análisis';
             toast.error(`❌ ${errorMessage}`, { autoClose: 5000 });
-    
+
             if (err.response?.data?.errors) {
                 const validationErrors = err.response.data.errors.map((e: any) => e.message).join(', ');
                 toast.error(`Errores de validación: ${validationErrors}`, { autoClose: 7000 });
@@ -1268,7 +1317,7 @@ const Dashboard = () => {
             setLoading(false);
         }
     };
-    
+
     const refreshPredictions = async () => {
         try {
             const response = await axios.get(`${API_URL}/predictions`);
@@ -2125,10 +2174,66 @@ const Dashboard = () => {
                             )}
                         </button>
 
-                        <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
-                            <FaFileAlt className="text-[#0074CF]" />
-                            <span>Documentación</span>
-                        </a>
+                        <div className="space-y-1">
+                            <motion.div
+                                className="flex items-center justify-between p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular cursor-pointer"
+                                onClick={toggleDocsMenu}
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.98 }}
+                            >
+                                <div className="flex items-center space-x-3">
+                                    <motion.div
+                                        animate={{ rotate: isDocsOpen ? 0 : 0 }}
+                                        transition={{ duration: 0.2 }}
+                                    >
+                                        <FaFileAlt className="text-[#0074CF]" />
+                                    </motion.div>
+                                    <span>Documentación</span>
+                                </div>
+                                <motion.div
+                                    animate={{ rotate: isDocsOpen ? 0 : -90 }}
+                                    transition={{ duration: 0.2 }}
+                                >
+                                    <FaChevronDown className="text-[#0074CF] w-3 h-3" />
+                                </motion.div>
+                            </motion.div>
+
+                            <AnimatePresence>
+                                {isDocsOpen && (
+                                    <motion.ul
+                                        initial="closed"
+                                        animate="open"
+                                        exit="closed"
+                                        variants={menuVariants}
+                                        className="ml-10 space-y-1 overflow-hidden"
+                                    >
+                                        <motion.li variants={itemVariants}>
+                                            <Link href="/documentacion/manual" legacyBehavior>
+                                                <motion.a
+                                                    className="text-sm text-[#003268] hover:text-[#0074CF] flex items-center py-1"
+                                                    whileHover={{ x: 5 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    📘 Manual de Usuario
+                                                </motion.a>
+                                            </Link>
+                                        </motion.li>
+                                        <motion.li variants={itemVariants}>
+                                            <Link href="/documentacion/guia" legacyBehavior>
+                                                <motion.a
+                                                    className="text-sm text-[#003268] hover:text-[#0074CF] flex items-center py-1"
+                                                    whileHover={{ x: 5 }}
+                                                    whileTap={{ scale: 0.95 }}
+                                                >
+                                                    📗 Guía del Desarrollador
+                                                </motion.a>
+                                            </Link>
+                                        </motion.li>
+                                    </motion.ul>
+                                )}
+                            </AnimatePresence>
+                        </div>
+
                         <a href="#" className="flex items-center space-x-3 p-2 rounded-lg text-[#001A30] hover:bg-[#EDEDED] font-gotham-regular">
                             <FaExchangeAlt className="text-[#0074CF]" />
                             <span>Movimientos</span>
