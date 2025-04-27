@@ -106,7 +106,9 @@ class PythonService {
             const { 
                 recalculateProjections = true,
                 updateFrequency = true,
-                persistChanges = true
+                persistChanges = true,
+                poNumber = null,
+                expectedArrival = null
             } = options;
 
             // 1. Obtener predicciones actuales
@@ -121,19 +123,30 @@ class PythonService {
             // 3. Clonar profundamente el producto
             const productToUpdate = JSON.parse(JSON.stringify(predictions[productIndex]));
             
-            // 4. Aplicar unidades en tránsito
-            productToUpdate.UNIDADES_TRANSITO = parseFloat(units) || 0;
+            // 4. Sumar nuevas unidades en tránsito a las existentes
+            const newUnits = parseFloat(units) || 0;
+            productToUpdate.UNIDADES_TRANSITO = (productToUpdate.UNIDADES_TRANSITO || 0) + newUnits;
             productToUpdate.STOCK_TOTAL = productToUpdate.STOCK_FISICO + productToUpdate.UNIDADES_TRANSITO;
 
-            // 5. Recalcular valores inmediatos
+            // 5. Actualizar PEDIDOS_PENDIENTES si se proporciona poNumber
+            if (poNumber && newUnits > 0) {
+                productToUpdate.PEDIDOS_PENDIENTES = productToUpdate.PEDIDOS_PENDIENTES || {};
+                productToUpdate.PEDIDOS_PENDIENTES[poNumber] = {
+                    unidades: newUnits,
+                    columna: `A PEDIR UNID PO-${poNumber}`,
+                    expectedArrival: expectedArrival || new Date().toISOString().split('T')[0]
+                };
+            }
+
+            // 6. Recalcular valores inmediatos
             this._recalculateProductValues(productToUpdate);
 
-            // 6. Recalcular proyecciones si se solicita
+            // 7. Recalcular proyecciones si se solicita
             if (recalculateProjections) {
                 this._recalculateProjections(productToUpdate);
             }
 
-            // 7. Actualizar frecuencia de reposición si se solicita
+            // 8. Actualizar frecuencia de reposición si se solicita
             if (updateFrequency && productToUpdate.CONSUMO_DIARIO > 0) {
                 productToUpdate.FRECUENCIA_REPOSICION = 
                     Math.min(
@@ -142,7 +155,7 @@ class PythonService {
                     );
             }
 
-            // 8. Actualizar y guardar si se solicita
+            // 9. Actualizar y guardar si se solicita
             if (persistChanges) {
                 const updatedPredictions = [...predictions];
                 updatedPredictions[productIndex] = productToUpdate;
@@ -204,9 +217,9 @@ class PythonService {
 
     _recalculateProjections(product) {
         const leadTime = product.CONFIGURACION.LEAD_TIME_REPOSICION;
-        const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+        const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
         
-        // Variables de seguimiento mejoradas
+        // Variables de seguimiento
         let currentStock = product.STOCK_FISICO;
         let transitUnits = product.UNIDADES_TRANSITO;
         let pendingOrders = {};
@@ -214,74 +227,104 @@ class PythonService {
         product.PROYECCIONES.forEach((proj, index) => {
             try {
                 const [monthStr, yearStr] = proj.mes.split('-');
-                const monthIndex = monthNames.findIndex(m => m === monthStr);
+                const monthIndex = monthNames.findIndex(m => m === monthStr.toUpperCase());
                 const year = parseInt(yearStr, 10);
                 
-                // 1. Aplicar unidades en tránsito solo al primer mes
-                if (index === 0) {
+                // 1. Inicializar stock inicial
+                proj.stock_inicial = index === 0 ? product.STOCK_TOTAL : product.PROYECCIONES[index - 1].stock_proyectado;
+
+                // 2. Aplicar unidades en tránsito solo en marzo 2025
+                if (index === 0 && transitUnits > 0) {
+                    proj.pedidos_recibidos = transitUnits;
                     currentStock += transitUnits;
+                    proj.unidades_en_transito = transitUnits;
+                    proj.pedidos_pendientes = product.PEDIDOS_PENDIENTES || {};
                     transitUnits = 0;
+                } else {
+                    proj.pedidos_recibidos = 0;
+                    proj.unidades_en_transito = 0;
+                    proj.pedidos_pendientes = {};
                 }
                 
-                // 2. Aplicar pedidos pendientes que llegan ESTE mes
+                // 3. Aplicar pedidos pendientes que llegan ESTE mes
                 const arrivalMonthKey = `${monthStr}-${yearStr}`;
                 const pedidosRecibidos = pendingOrders[arrivalMonthKey] || 0;
                 if (pedidosRecibidos > 0) {
                     currentStock += pedidosRecibidos;
+                    proj.pedidos_recibidos += pedidosRecibidos;
                     delete pendingOrders[arrivalMonthKey];
-                    proj.pedidos_recibidos = pedidosRecibidos; // Nuevo campo
                 }
                 
-                // 3. Calcular consumo y stock después de consumo
+                // 4. Calcular consumo y stock después de consumo
                 const stockAfterConsumption = Math.max(currentStock - proj.consumo_mensual, 0);
                 
-                // 4. Calcular punto de reorden DINÁMICO (basado en consumo actual)
+                // 5. Calcular punto de reorden DINÁMICO
                 const puntoReordenDinamico = proj.consumo_diario * product.CONFIGURACION.DIAS_PUNTO_REORDEN;
                 
-                // 5. Calcular déficit (considerando stock de seguridad)
+                // 6. Calcular déficit
                 const effectivePuntoReorden = Math.max(
                     puntoReordenDinamico - transitUnits,
                     proj.stock_seguridad
                 );
                 
-                // 6. DECISIÓN: ¿Necesitamos pedir más?
+                // 7. DECISIÓN: ¿Necesitamos pedir más?
                 let newUnitsToOrder = 0;
                 if (stockAfterConsumption < effectivePuntoReorden) {
                     const deficit = effectivePuntoReorden - stockAfterConsumption;
                     newUnitsToOrder = Math.ceil(deficit / product.UNIDADES_POR_CAJA) * product.UNIDADES_POR_CAJA;
                     
+                    // Calcular fecha de solicitud (primer día del mes actual)
+                    const fechaSolicitud = new Date();
+                    fechaSolicitud.setDate(1);
+                    
+                    // Calcular fecha de arribo (fecha de solicitud + lead time)
+                    const fechaArribo = new Date(fechaSolicitud);
+                    fechaArribo.setDate(fechaArribo.getDate() + leadTime);
+                    
                     // Programar llegada para el mes siguiente
+                    let nextMonthKey;
                     if (index < product.PROYECCIONES.length - 1) {
                         const nextMonth = product.PROYECCIONES[index + 1];
-                        const nextMonthKey = nextMonth.mes;
-                        pendingOrders[nextMonthKey] = (pendingOrders[nextMonthKey] || 0) + newUnitsToOrder;
+                        nextMonthKey = nextMonth.mes;
+                    } else {
+                        const nextMonthDate = new Date(year, monthIndex + 1, 1);
+                        nextMonthKey = `${monthNames[nextMonthDate.getMonth()]}-${nextMonthDate.getFullYear()}`;
                     }
+                    pendingOrders[nextMonthKey] = (pendingOrders[nextMonthKey] || 0) + newUnitsToOrder;
+                    
+                    // Asignar fechas a la proyección
+                    proj.fecha_solicitud = fechaSolicitud.toISOString().split('T')[0];
+                    proj.fecha_arribo = fechaArribo.toISOString().split('T')[0];
+                } else {
+                    proj.fecha_solicitud = "No aplica";
+                    proj.fecha_arribo = "No aplica";
                 }
                 
-                // 7. Actualizar valores de la proyección
+                // 8. Actualizar valores de la proyección
                 proj.stock_proyectado = stockAfterConsumption;
                 proj.unidades_a_pedir = newUnitsToOrder;
                 proj.cajas_a_pedir = Math.ceil(newUnitsToOrder / product.UNIDADES_POR_CAJA);
-                proj.punto_reorden = puntoReordenDinamico; // Actualizado
+                proj.punto_reorden = puntoReordenDinamico;
+                proj.deficit = newUnitsToOrder > 0 ? effectivePuntoReorden - stockAfterConsumption : 0;
                 
-                // 8. Calcular tiempo de cobertura
+                // 9. Calcular tiempo de cobertura
                 if (proj.consumo_diario > 0) {
                     proj.tiempo_cobertura = Math.min(
                         Math.max(stockAfterConsumption - proj.stock_seguridad, 0) / proj.consumo_diario,
                         product.CONFIGURACION.DIAS_MAX_REPOSICION
                     );
                     
-                    // Fecha de reposición más precisa
+                    // Fecha de reposición
                     const diasHastaReposicion = Math.max(
-                        (effectivePuntoReorden - currentStock) / proj.consumo_diario,
+                        (effectivePuntoReorden - stockAfterConsumption) / proj.consumo_diario,
                         0
                     );
-                    const fechaReposicion = new Date(year, monthIndex, 15);
+                    const fechaReposicion = new Date(year, monthIndex, 1);
                     fechaReposicion.setDate(fechaReposicion.getDate() + Math.max(diasHastaReposicion - leadTime, 0));
                     proj.fecha_reposicion = fechaReposicion.toISOString().split('T')[0];
                 }
                 
-                // 9. Preparar para siguiente mes
+                // 10. Preparar para siguiente mes
                 currentStock = stockAfterConsumption;
                 proj.pedidos_pendientes = { ...pendingOrders };
                 
@@ -337,7 +380,7 @@ class PythonService {
             const updatedProduct = { 
                 ...predictions[productIndex], 
                 ...updates,
-                STOCK_TOTAL: predictions[productIndex].STOCK_FISICO + (updates.UNIDADES_TRANSITO || 0)
+                STOCK_TOTAL: predictions[productIndex].STOCK_FISICO + (updates.UNIDADES_TRANSITO || predictions[productIndex].UNIDADES_TRANSITO || 0)
             };
             
             // 4. Recalcular valores

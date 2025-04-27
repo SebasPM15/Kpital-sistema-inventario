@@ -1075,6 +1075,202 @@ const Dashboard = () => {
         }
     };
 
+    const generateOrderPDF = async (products: any[]) => {
+        try {
+            const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
+    
+            // Configuración de márgenes y espacios
+            const margin = {
+                left: 15,
+                right: 15,
+                top: 15,
+                bottom: 20
+            };
+            const pageWidth = 210;
+            const contentWidth = pageWidth - margin.left - margin.right;
+            let currentY = margin.top;
+    
+            // Configuración de fuentes y colores corporativos
+            pdf.setFont('helvetica');
+            const primaryBlue: [number, number, number] = [0, 50, 104]; // #003268
+            const oceanBlue: [number, number, number] = [0, 116, 207]; // #0074CF
+            const cyan: [number, number, number] = [0, 176, 240]; // #00B0F0
+            const darkBlue: [number, number, number] = [0, 26, 48]; // #001A30
+            const smokeColor: [number, number, number] = [237, 237, 237]; // #EDEDED
+    
+            // --- ENCABEZADO CON LOGO ---
+            const logoData = await getBase64ImageFromURL('/Logo_Kpital.jpg') as string;
+    
+            // Ajuste profesional del logo
+            const logoMaxHeight = 20; // Altura máxima en mm
+            const logoMaxWidth = 60;  // Ancho máximo en mm
+    
+            // Obtener dimensiones reales de la imagen
+            const img = new Image();
+            img.src = logoData;
+            await new Promise((resolve) => {
+                img.onload = resolve;
+            });
+    
+            const aspectRatio = img.width / img.height;
+            let logoWidth = logoMaxWidth;
+            let logoHeight = logoMaxHeight;
+    
+            // Ajustar para mantener proporciones
+            if (img.width > img.height) {
+                logoHeight = logoWidth / aspectRatio;
+                if (logoHeight > logoMaxHeight) {
+                    logoHeight = logoMaxHeight;
+                    logoWidth = logoHeight * aspectRatio;
+                }
+            } else {
+                logoWidth = logoHeight * aspectRatio;
+                if (logoWidth > logoMaxWidth) {
+                    logoWidth = logoMaxWidth;
+                    logoHeight = logoWidth / aspectRatio;
+                }
+            }
+    
+            // Posición centrada
+            const logoX = (pageWidth - logoWidth) / 2;
+            const logoY = margin.top;
+    
+            pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
+            currentY = logoY + logoHeight + 10;
+    
+            // --- TÍTULO DEL DOCUMENTO ---
+            pdf.setFontSize(16);
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(...darkBlue);
+            pdf.text('ORDEN DE COMPRA', pageWidth / 2, currentY, { align: 'center' });
+            currentY += 10;
+    
+            // Línea decorativa
+            pdf.setDrawColor(...oceanBlue);
+            pdf.setLineWidth(0.5);
+            pdf.line(margin.left, currentY, pageWidth - margin.right, currentY);
+            currentY += 15;
+    
+            // --- DATOS DE LA EMPRESA ---
+            pdf.setFontSize(10);
+            pdf.setTextColor(100, 100, 100);
+
+            const empresaData = [
+                `Kpital Link`,
+                `RUC: 1793153682001`,
+                `Dirección: Catalina Aldaz N34-155 y Portugal`,
+                `Teléfono: 0995099217`,
+                `Email: pricing@kpitalink.com`
+            ];
+    
+            empresaData.forEach((line, index) => {
+                pdf.text(line, margin.left, currentY + (index * 5));
+            });
+    
+            // --- DATOS DEL DOCUMENTO ---
+            const today = new Date();
+            const formattedFechaOrden = today.toLocaleDateString('es-ES', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            }).toUpperCase();
+    
+            const fechaCodigo = today.toISOString().split('T')[0].replace(/-/g, '');
+            const numeroOrden = `ORD-${fechaCodigo}-${Math.floor(1000 + Math.random() * 9000)}`;
+    
+            pdf.text(`Número: ${numeroOrden}`, pageWidth - margin.right, currentY, { align: 'right' });
+            pdf.text(`Fecha: ${formattedFechaOrden}`, pageWidth - margin.right, currentY + 5, { align: 'right' });
+            currentY += 30;
+    
+            // --- DATOS DEL SOLICITANTE ---
+            const userString = localStorage.getItem('user');
+            const user = userString ? JSON.parse(userString) : {};
+    
+            pdf.setFont('helvetica', 'bold');
+            pdf.setTextColor(...primaryBlue);
+            pdf.text('DATOS DEL SOLICITANTE', margin.left, currentY);
+            currentY += 5;
+    
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(80, 80, 80);
+    
+            const clienteData = [
+                `Nombre: ${user?.nombre || 'No especificado'}`,
+                `Email: ${user?.email || 'No especificado'}`,
+                `Teléfono: ${user?.celular || 'No especificado'}`
+            ];
+    
+            clienteData.forEach((line, index) => {
+                pdf.text(line, margin.left, currentY + (index * 5));
+            });
+            currentY += 20;
+    
+            // --- DETALLE DE PRODUCTOS ---
+            const productsAPedir = products.filter((product) => product.CAJAS_A_PEDIR && product.CAJAS_A_PEDIR > 0);
+    
+            if (productsAPedir.length === 0) {
+                alert('No hay productos con cajas a pedir.');
+                return;
+            }
+    
+            // Preparar datos de tabla
+            const tableData = productsAPedir.map((product) => [
+                product.CODIGO || '-',
+                product.DESCRIPCION || '-',
+                product.UNIDADES_A_PEDIR ? product.UNIDADES_A_PEDIR.toString() : '-',
+                product.CAJAS_A_PEDIR ? product.CAJAS_A_PEDIR.toString() : '-'
+            ]);
+    
+            // Configuración de la tabla
+            autoTable(pdf, {
+                startY: currentY,
+                head: [['Código', 'Descripción', 'Unidades', 'Cajas']],
+                body: tableData,
+                margin: { left: margin.left, right: margin.right },
+                headStyles: {
+                    fillColor: primaryBlue,
+                    textColor: [255, 255, 255],
+                    fontStyle: 'bold',
+                    halign: 'center',
+                    fontSize: 9
+                },
+                bodyStyles: {
+                    textColor: [50, 50, 50],
+                    fontSize: 9,
+                    cellPadding: 3
+                },
+                alternateRowStyles: {
+                    fillColor: smokeColor
+                },
+                columnStyles: {
+                    0: { cellWidth: 25, halign: 'center' },
+                    1: { cellWidth: 'auto' },
+                    2: { cellWidth: 25, halign: 'center' },
+                    3: { cellWidth: 20, halign: 'center' }
+                },
+                styles: {
+                    lineColor: [200, 200, 200],
+                    lineWidth: 0.2
+                }
+            });
+    
+            // --- TOTALES ---
+            currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
+    
+            // --- PIE DE PÁGINA ---
+            pdf.setFontSize(8);
+            pdf.setTextColor(100, 100, 100);
+            pdf.text('Documento generado automáticamente - © Kpital Link', pageWidth / 2, 290, { align: 'center' });
+    
+            // Guardar PDF
+            pdf.save(`Orden_Compra_${numeroOrden}.pdf`);
+    
+        } catch (error) {
+            console.error('Error al generar el PDF:', error);
+            alert('Ocurrió un error al generar el PDF. Por favor intente nuevamente.');
+        }
+    };
+
     // Función auxiliar para cargar el logo (debes implementarla según tu entorno)
     async function getBase64ImageFromURL(url: string | URL | Request) {
         const response = await fetch(url);
@@ -2258,7 +2454,6 @@ const Dashboard = () => {
         );
     };
 
-
     const DetailModal = ({ onClose, selectedPrediction, refreshPredictions }: DetailModalProps) => {
         if (!selectedPrediction) return null;
 
@@ -2295,6 +2490,26 @@ const Dashboard = () => {
             if (!dateStr || dateStr === "No aplica") return dateStr;
             const date = new Date(dateStr);
             return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
+        };
+
+        const getFechaLlegada = (mesDestino: string, proyecciones: any[]) => {
+            const proyeccionDestino = proyecciones.find(p => p.mes === mesDestino);
+            if (proyeccionDestino) {
+                return proyeccionDestino.fecha_reposicion;
+            }
+            // Si el mes destino no está en las proyecciones (ej. SEP-2025), calcular un mes después de la última fecha_reposicion
+            const ultimaProyeccion = proyecciones[proyecciones.length - 1];
+            const ultimaFecha = new Date(ultimaProyeccion.fecha_reposicion);
+            ultimaFecha.setMonth(ultimaFecha.getMonth() + 1);
+            return ultimaFecha.toISOString().split('T')[0];
+        };
+
+        const getMesSiguiente = (ultimaFecha: string | number | Date) => {
+            const fecha = new Date(ultimaFecha);
+            fecha.setMonth(fecha.getMonth() + 1);
+            const mes = fecha.toLocaleString('es', { month: 'short' }).toUpperCase();
+            const year = fecha.getFullYear();
+            return `${mes}-${year}`;
         };
 
         return (
@@ -2599,7 +2814,7 @@ const Dashboard = () => {
                                                     // Pedidos pendientes para meses FUTUROS (los que se ordenan este mes)
                                                     const pedidosPendientes = proyeccion.unidades_a_pedir > 0
                                                         ? [{
-                                                            mes: producto.PROYECCIONES[index + 1]?.mes || 'Siguiente',
+                                                            mes: producto.PROYECCIONES[index + 1]?.mes || 'Mes próximo',
                                                             unidades: proyeccion.unidades_a_pedir
                                                         }]
                                                         : [];
@@ -2633,9 +2848,14 @@ const Dashboard = () => {
                                                                 {pedidosPendientes.length > 0 ? (
                                                                     <div className="flex flex-col gap-1 items-center">
                                                                         {pedidosPendientes.map(({ mes, unidades }) => (
-                                                                            <div key={mes} className="flex items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
-                                                                                <FaTruckLoading className="text-[#0074CF]" />
-                                                                                {mes}: {formatNumber(unidades)} unid.
+                                                                            <div key={mes} className="flex flex-col items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
+                                                                                <div className="flex items-center gap-1">
+                                                                                    <FaTruckLoading className="text-[#0074CF]" />
+                                                                                    {mes}: {formatNumber(unidades)} unid.
+                                                                                </div>
+                                                                                <div className="text-[#0074CF]">
+                                                                                    Llegada: {formatDateWithDay(getFechaLlegada(mes, producto.PROYECCIONES))}
+                                                                                </div>
                                                                             </div>
                                                                         ))}
                                                                     </div>
@@ -3525,9 +3745,31 @@ const Dashboard = () => {
                                             </span>
                                         </h1>
                                         <p className="text-sm text-gray-500 mt-1">
-                                            Gestión inteligente de stock y proyecciones de la Demanda
+                                            Gestión inteligente de stock y proyecciones de la demanda
                                         </p>
                                     </div>
+
+                                    <button
+                                        onClick={() => generateOrderPDF(allPredictions)}
+                                        className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-2xl font-medium text-sm transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                                    >
+                                        <svg
+                                            xmlns="http://www.w3.org/2000/svg"
+                                            className="h-5 w-5"
+                                            fill="none"
+                                            viewBox="0 0 24 24"
+                                            stroke="currentColor"
+                                        >
+                                            <path
+                                                strokeLinecap="round"
+                                                strokeLinejoin="round"
+                                                strokeWidth={2}
+                                                d="M12 4v16m8-8H4"
+                                            />
+                                        </svg>
+                                        <span>Generar orden de pedidos</span>
+                                    </button>
+
                                     <button
                                         onClick={() => {
                                             setAllPredictions([]);
