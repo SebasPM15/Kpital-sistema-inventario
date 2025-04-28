@@ -224,23 +224,16 @@ class PythonService {
         let transitUnits = product.UNIDADES_TRANSITO;
         let pendingOrders = {};
         
-        // Obtener fecha base del primer mes de proyección
-        const [firstMonth, firstYear] = product.PROYECCIONES[0].mes.split('-');
-        const baseDate = new Date(`${firstYear}-${monthNames.indexOf(firstMonth) + 1}-01`);
-        
         product.PROYECCIONES.forEach((proj, index) => {
             try {
                 const [monthStr, yearStr] = proj.mes.split('-');
                 const monthIndex = monthNames.findIndex(m => m === monthStr.toUpperCase());
                 const year = parseInt(yearStr, 10);
                 
-                // 1. Calcular fecha base para este mes de proyección
-                const projectionDate = new Date(year, monthIndex, 1);
-                
-                // 2. Inicializar stock inicial
+                // 1. Inicializar stock inicial
                 proj.stock_inicial = index === 0 ? product.STOCK_TOTAL : product.PROYECCIONES[index - 1].stock_proyectado;
-    
-                // 3. Aplicar unidades en tránsito solo en el primer mes
+
+                // 2. Aplicar unidades en tránsito solo en marzo 2025
                 if (index === 0 && transitUnits > 0) {
                     proj.pedidos_recibidos = transitUnits;
                     currentStock += transitUnits;
@@ -253,7 +246,7 @@ class PythonService {
                     proj.pedidos_pendientes = {};
                 }
                 
-                // 4. Aplicar pedidos pendientes que llegan ESTE mes
+                // 3. Aplicar pedidos pendientes que llegan ESTE mes
                 const arrivalMonthKey = `${monthStr}-${yearStr}`;
                 const pedidosRecibidos = pendingOrders[arrivalMonthKey] || 0;
                 if (pedidosRecibidos > 0) {
@@ -262,31 +255,31 @@ class PythonService {
                     delete pendingOrders[arrivalMonthKey];
                 }
                 
-                // 5. Calcular consumo y stock después de consumo
+                // 4. Calcular consumo y stock después de consumo
                 const stockAfterConsumption = Math.max(currentStock - proj.consumo_mensual, 0);
                 
-                // 6. Calcular punto de reorden DINÁMICO
+                // 5. Calcular punto de reorden DINÁMICO
                 const puntoReordenDinamico = proj.consumo_diario * product.CONFIGURACION.DIAS_PUNTO_REORDEN;
                 
-                // 7. Calcular déficit
+                // 6. Calcular déficit
                 const effectivePuntoReorden = Math.max(
                     puntoReordenDinamico - transitUnits,
                     proj.stock_seguridad
                 );
                 
-                // 8. DECISIÓN: ¿Necesitamos pedir más?
+                // 7. DECISIÓN: ¿Necesitamos pedir más?
                 let newUnitsToOrder = 0;
                 if (stockAfterConsumption < effectivePuntoReorden) {
                     const deficit = effectivePuntoReorden - stockAfterConsumption;
                     newUnitsToOrder = Math.ceil(deficit / product.UNIDADES_POR_CAJA) * product.UNIDADES_POR_CAJA;
                     
-                    // Calcular fechas basadas en el mes de proyección
-                    const fechaSolicitud = new Date(projectionDate);
+                    // Calcular fecha de solicitud (primer día del mes actual)
+                    const fechaSolicitud = new Date();
                     fechaSolicitud.setDate(1);
                     
                     // Calcular fecha de arribo (fecha de solicitud + lead time)
                     const fechaArribo = new Date(fechaSolicitud);
-                    fechaArribo.setDate(fechaSolicitud.getDate() + leadTime);
+                    fechaArribo.setDate(fechaArribo.getDate() + leadTime);
                     
                     // Programar llegada para el mes siguiente
                     let nextMonthKey;
@@ -294,8 +287,7 @@ class PythonService {
                         const nextMonth = product.PROYECCIONES[index + 1];
                         nextMonthKey = nextMonth.mes;
                     } else {
-                        const nextMonthDate = new Date(projectionDate);
-                        nextMonthDate.setMonth(projectionDate.getMonth() + 1);
+                        const nextMonthDate = new Date(year, monthIndex + 1, 1);
                         nextMonthKey = `${monthNames[nextMonthDate.getMonth()]}-${nextMonthDate.getFullYear()}`;
                     }
                     pendingOrders[nextMonthKey] = (pendingOrders[nextMonthKey] || 0) + newUnitsToOrder;
@@ -308,38 +300,31 @@ class PythonService {
                     proj.fecha_arribo = "No aplica";
                 }
                 
-                // 9. Actualizar valores de la proyección
+                // 8. Actualizar valores de la proyección
                 proj.stock_proyectado = stockAfterConsumption;
                 proj.unidades_a_pedir = newUnitsToOrder;
                 proj.cajas_a_pedir = Math.ceil(newUnitsToOrder / product.UNIDADES_POR_CAJA);
                 proj.punto_reorden = puntoReordenDinamico;
                 proj.deficit = newUnitsToOrder > 0 ? effectivePuntoReorden - stockAfterConsumption : 0;
                 
-                // 10. Calcular tiempo de cobertura y fecha de reposición
+                // 9. Calcular tiempo de cobertura
                 if (proj.consumo_diario > 0) {
                     proj.tiempo_cobertura = Math.min(
                         Math.max(stockAfterConsumption - proj.stock_seguridad, 0) / proj.consumo_diario,
                         product.CONFIGURACION.DIAS_MAX_REPOSICION
                     );
                     
-                    // Calcular fecha de reposición basada en el mes de proyección
+                    // Fecha de reposición
                     const diasHastaReposicion = Math.max(
-                        (puntoReordenDinamico - stockAfterConsumption) / proj.consumo_diario,
+                        (effectivePuntoReorden - stockAfterConsumption) / proj.consumo_diario,
                         0
                     );
-                    
-                    const fechaReposicion = new Date(projectionDate);
+                    const fechaReposicion = new Date(year, monthIndex, 1);
                     fechaReposicion.setDate(fechaReposicion.getDate() + Math.max(diasHastaReposicion - leadTime, 0));
-                    
-                    // Asegurar que la fecha no sea anterior a la fecha base
-                    if (fechaReposicion < baseDate) {
-                        fechaReposicion.setDate(baseDate.getDate() + Math.max(diasHastaReposicion - leadTime, 0));
-                    }
-                    
                     proj.fecha_reposicion = fechaReposicion.toISOString().split('T')[0];
                 }
                 
-                // 11. Preparar para siguiente mes
+                // 10. Preparar para siguiente mes
                 currentStock = stockAfterConsumption;
                 proj.pedidos_pendientes = { ...pendingOrders };
                 
