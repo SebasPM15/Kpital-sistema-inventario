@@ -2488,28 +2488,63 @@ const Dashboard = () => {
         // Función para formatear fecha con día
         const formatDateWithDay = (dateStr: string | number | Date) => {
             if (!dateStr || dateStr === "No aplica") return dateStr;
-            const date = new Date(dateStr);
-            return date.toLocaleDateString('es-ES', { day: 'numeric', month: 'short' });
-        };
-
-        const getFechaLlegada = (mesDestino: string, proyecciones: any[]) => {
-            const proyeccionDestino = proyecciones.find(p => p.mes === mesDestino);
-            if (proyeccionDestino) {
-                return proyeccionDestino.fecha_reposicion;
+            
+            try {
+                const date = new Date(dateStr);
+                // Verificar si la fecha es válida
+                if (isNaN(date.getTime())) {
+                    console.warn(`Fecha inválida recibida: ${dateStr}`);
+                    return "Fecha inválida";
+                }
+                
+                return date.toLocaleDateString('es-ES', { 
+                    day: 'numeric', 
+                    month: 'short',
+                    timeZone: 'UTC' // Asegurar consistencia en diferentes zonas horarias
+                }).replace(/^(\d)/, '$1'); // Eliminar ceros iniciales en el día
+            } catch (error) {
+                console.error(`Error formateando fecha ${dateStr}:`, error);
+                return dateStr;
             }
-            // Si el mes destino no está en las proyecciones (ej. SEP-2025), calcular un mes después de la última fecha_reposicion
-            const ultimaProyeccion = proyecciones[proyecciones.length - 1];
-            const ultimaFecha = new Date(ultimaProyeccion.fecha_reposicion);
-            ultimaFecha.setMonth(ultimaFecha.getMonth() + 1);
-            return ultimaFecha.toISOString().split('T')[0];
         };
 
-        const getMesSiguiente = (ultimaFecha: string | number | Date) => {
-            const fecha = new Date(ultimaFecha);
-            fecha.setMonth(fecha.getMonth() + 1);
-            const mes = fecha.toLocaleString('es', { month: 'short' }).toUpperCase();
-            const year = fecha.getFullYear();
-            return `${mes}-${year}`;
+        // Nueva función para calcular fecha de reposición precisa
+        const calculateRepositionDate = (proyeccion: any, producto: any) => {
+            if (!proyeccion.fecha_reposicion || proyeccion.fecha_reposicion === "No aplica") {
+                return "No aplica";
+            }
+
+            try {
+                const consumoDiario = proyeccion.consumo_diario || producto.CONSUMO_DIARIO;
+                const diasPuntoReorden = producto.CONFIGURACION.DIAS_PUNTO_REORDEN;
+                const leadTime = producto.CONFIGURACION.LEAD_TIME_REPOSICION;
+                
+                const stockDespuesConsumo = proyeccion.stock_proyectado;
+                const puntoReorden = consumoDiario * diasPuntoReorden;
+                
+                // Calcular días exactos hasta reposición
+                const diasHastaReposicion = Math.max(
+                    (puntoReorden - stockDespuesConsumo) / consumoDiario,
+                    0
+                );
+                
+                const fechaBase = new Date(proyeccion.fecha_reposicion);
+                if (isNaN(fechaBase.getTime())) {
+                    return "Fecha inválida";
+                }
+                
+                // Ajustar fecha considerando días laborales
+                const fechaReposicion = new Date(fechaBase);
+                fechaReposicion.setDate(fechaBase.getDate() + Math.ceil(diasHastaReposicion));
+                
+                return fechaReposicion.toLocaleDateString('es-ES', {
+                    day: 'numeric',
+                    month: 'short'
+                });
+            } catch (error) {
+                console.error("Error calculando fecha de reposición:", error);
+                return proyeccion.fecha_reposicion;
+            }
         };
 
         return (
@@ -2824,7 +2859,7 @@ const Dashboard = () => {
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
                                                                 <div className="text-xs text-[#0074CF]">
-                                                                    Reposición: {formatDateWithDay(proyeccion.fecha_reposicion)}
+                                                                    Reposición: {calculateRepositionDate(proyeccion, producto)}
                                                                 </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30]">
@@ -2852,9 +2887,6 @@ const Dashboard = () => {
                                                                                 <div className="flex items-center gap-1">
                                                                                     <FaTruckLoading className="text-[#0074CF]" />
                                                                                     {mes}: {formatNumber(unidades)} unid.
-                                                                                </div>
-                                                                                <div className="text-[#0074CF]">
-                                                                                    Llegada: {formatDateWithDay(getFechaLlegada(mes, producto.PROYECCIONES))}
                                                                                 </div>
                                                                             </div>
                                                                         ))}
@@ -3837,7 +3869,7 @@ const Dashboard = () => {
                                             <tbody className="divide-y divide-slate-100">
                                                 {currentPredictions.length > 0 ? (
                                                     currentPredictions.map((producto) => {
-                                                        const stockTotal = producto.STOCK_FISICO + (producto.UNIDADES_TRANSITO || 0);
+                                                        const stockTotal = producto.STOCK_TOTAL
                                                         const status = getStockStatus(
                                                             stockTotal,
                                                             producto.STOCK_SEGURIDAD,
