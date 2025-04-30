@@ -20,7 +20,10 @@ import {
     FaSpinner,
     FaPhone,
     FaTruckLoading,
-    FaChevronDown
+    FaChevronDown,
+    FaBoxes,
+    FaFileInvoice,
+    FaCalendarCheck
 } from 'react-icons/fa';
 import { FiAlertCircle, FiAlertTriangle, FiCheckCircle } from 'react-icons/fi';
 import { GiReceiveMoney } from 'react-icons/gi';
@@ -53,7 +56,7 @@ const API_URL = 'https://kpital-sistema-inventario-backend-ia.onrender.com/api';
 // Interfaces
 interface Proyeccion {
     mes: string;
-    stock_inicial?: number; // Nuevo campo para stock al inicio del mes
+    stock_inicial: number;
     stock_proyectado: number;
     consumo_mensual: number;
     consumo_diario: number;
@@ -65,12 +68,15 @@ interface Proyeccion {
     unidades_a_pedir: number;
     alerta_stock: boolean;
     fecha_reposicion: string;
+    fecha_solicitud: string;
+    fecha_arribo: string;
     tiempo_cobertura: number;
     frecuencia_reposicion: number;
     unidades_en_transito: number;
     pedidos_pendientes: Record<string, number>;
-    pedidos_recibidos?: number; // Nuevo campo para unidades recibidas este mes
-    accion_requerida?: string; // Nuevo campo para texto descriptivo de acción
+    pedidos_recibidos: number;
+    accion_requerida: string;
+    stock_total?: number; // Nuevo campo: stock inicial + unidades en tránsito/recibidas
 }
 
 interface ProductoData {
@@ -1078,7 +1084,7 @@ const Dashboard = () => {
     const generateOrderPDF = async (products: any[]) => {
         try {
             const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
-    
+
             // Configuración de márgenes y espacios
             const margin = {
                 left: 15,
@@ -1089,7 +1095,7 @@ const Dashboard = () => {
             const pageWidth = 210;
             const contentWidth = pageWidth - margin.left - margin.right;
             let currentY = margin.top;
-    
+
             // Configuración de fuentes y colores corporativos
             pdf.setFont('helvetica');
             const primaryBlue: [number, number, number] = [0, 50, 104]; // #003268
@@ -1097,25 +1103,25 @@ const Dashboard = () => {
             const cyan: [number, number, number] = [0, 176, 240]; // #00B0F0
             const darkBlue: [number, number, number] = [0, 26, 48]; // #001A30
             const smokeColor: [number, number, number] = [237, 237, 237]; // #EDEDED
-    
+
             // --- ENCABEZADO CON LOGO ---
             const logoData = await getBase64ImageFromURL('/Logo_Kpital.jpg') as string;
-    
+
             // Ajuste profesional del logo
             const logoMaxHeight = 20; // Altura máxima en mm
             const logoMaxWidth = 60;  // Ancho máximo en mm
-    
+
             // Obtener dimensiones reales de la imagen
             const img = new Image();
             img.src = logoData;
             await new Promise((resolve) => {
                 img.onload = resolve;
             });
-    
+
             const aspectRatio = img.width / img.height;
             let logoWidth = logoMaxWidth;
             let logoHeight = logoMaxHeight;
-    
+
             // Ajustar para mantener proporciones
             if (img.width > img.height) {
                 logoHeight = logoWidth / aspectRatio;
@@ -1130,27 +1136,27 @@ const Dashboard = () => {
                     logoHeight = logoWidth / aspectRatio;
                 }
             }
-    
+
             // Posición centrada
             const logoX = (pageWidth - logoWidth) / 2;
             const logoY = margin.top;
-    
+
             pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
             currentY = logoY + logoHeight + 10;
-    
+
             // --- TÍTULO DEL DOCUMENTO ---
             pdf.setFontSize(16);
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(...darkBlue);
             pdf.text('ORDEN DE COMPRA', pageWidth / 2, currentY, { align: 'center' });
             currentY += 10;
-    
+
             // Línea decorativa
             pdf.setDrawColor(...oceanBlue);
             pdf.setLineWidth(0.5);
             pdf.line(margin.left, currentY, pageWidth - margin.right, currentY);
             currentY += 15;
-    
+
             // --- DATOS DE LA EMPRESA ---
             pdf.setFontSize(10);
             pdf.setTextColor(100, 100, 100);
@@ -1162,11 +1168,11 @@ const Dashboard = () => {
                 `Teléfono: 0995099217`,
                 `Email: pricing@kpitalink.com`
             ];
-    
+
             empresaData.forEach((line, index) => {
                 pdf.text(line, margin.left, currentY + (index * 5));
             });
-    
+
             // --- DATOS DEL DOCUMENTO ---
             const today = new Date();
             const formattedFechaOrden = today.toLocaleDateString('es-ES', {
@@ -1174,45 +1180,45 @@ const Dashboard = () => {
                 month: 'long',
                 year: 'numeric'
             }).toUpperCase();
-    
+
             const fechaCodigo = today.toISOString().split('T')[0].replace(/-/g, '');
             const numeroOrden = `ORD-${fechaCodigo}-${Math.floor(1000 + Math.random() * 9000)}`;
-    
+
             pdf.text(`Número: ${numeroOrden}`, pageWidth - margin.right, currentY, { align: 'right' });
             pdf.text(`Fecha: ${formattedFechaOrden}`, pageWidth - margin.right, currentY + 5, { align: 'right' });
             currentY += 30;
-    
+
             // --- DATOS DEL SOLICITANTE ---
             const userString = localStorage.getItem('user');
             const user = userString ? JSON.parse(userString) : {};
-    
+
             pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(...primaryBlue);
             pdf.text('DATOS DEL SOLICITANTE', margin.left, currentY);
             currentY += 5;
-    
+
             pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(80, 80, 80);
-    
+
             const clienteData = [
                 `Nombre: ${user?.nombre || 'No especificado'}`,
                 `Email: ${user?.email || 'No especificado'}`,
                 `Teléfono: ${user?.celular || 'No especificado'}`
             ];
-    
+
             clienteData.forEach((line, index) => {
                 pdf.text(line, margin.left, currentY + (index * 5));
             });
             currentY += 20;
-    
+
             // --- DETALLE DE PRODUCTOS ---
             const productsAPedir = products.filter((product) => product.CAJAS_A_PEDIR && product.CAJAS_A_PEDIR > 0);
-    
+
             if (productsAPedir.length === 0) {
                 alert('No hay productos con cajas a pedir.');
                 return;
             }
-    
+
             // Preparar datos de tabla
             const tableData = productsAPedir.map((product) => [
                 product.CODIGO || '-',
@@ -1220,7 +1226,7 @@ const Dashboard = () => {
                 product.UNIDADES_A_PEDIR ? product.UNIDADES_A_PEDIR.toString() : '-',
                 product.CAJAS_A_PEDIR ? product.CAJAS_A_PEDIR.toString() : '-'
             ]);
-    
+
             // Configuración de la tabla
             autoTable(pdf, {
                 startY: currentY,
@@ -1253,18 +1259,18 @@ const Dashboard = () => {
                     lineWidth: 0.2
                 }
             });
-    
+
             // --- TOTALES ---
             currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
-    
+
             // --- PIE DE PÁGINA ---
             pdf.setFontSize(8);
             pdf.setTextColor(100, 100, 100);
             pdf.text('Documento generado automáticamente - © Kpital Link', pageWidth / 2, 290, { align: 'center' });
-    
+
             // Guardar PDF
             pdf.save(`Orden_Compra_${numeroOrden}.pdf`);
-    
+
         } catch (error) {
             console.error('Error al generar el PDF:', error);
             alert('Ocurrió un error al generar el PDF. Por favor intente nuevamente.');
@@ -2488,7 +2494,7 @@ const Dashboard = () => {
         // Función para formatear fecha con día
         const formatDateWithDay = (dateStr: string | number | Date) => {
             if (!dateStr || dateStr === "No aplica") return dateStr;
-            
+
             try {
                 const date = new Date(dateStr);
                 // Verificar si la fecha es válida
@@ -2496,9 +2502,9 @@ const Dashboard = () => {
                     console.warn(`Fecha inválida recibida: ${dateStr}`);
                     return "Fecha inválida";
                 }
-                
-                return date.toLocaleDateString('es-ES', { 
-                    day: 'numeric', 
+
+                return date.toLocaleDateString('es-ES', {
+                    day: 'numeric',
                     month: 'short',
                     timeZone: 'UTC' // Asegurar consistencia en diferentes zonas horarias
                 }).replace(/^(\d)/, '$1'); // Eliminar ceros iniciales en el día
@@ -2518,25 +2524,25 @@ const Dashboard = () => {
                 const consumoDiario = proyeccion.consumo_diario || producto.CONSUMO_DIARIO;
                 const diasPuntoReorden = producto.CONFIGURACION.DIAS_PUNTO_REORDEN;
                 const leadTime = producto.CONFIGURACION.LEAD_TIME_REPOSICION;
-                
+
                 const stockDespuesConsumo = proyeccion.stock_proyectado;
                 const puntoReorden = consumoDiario * diasPuntoReorden;
-                
+
                 // Calcular días exactos hasta reposición
                 const diasHastaReposicion = Math.max(
                     (puntoReorden - stockDespuesConsumo) / consumoDiario,
                     0
                 );
-                
+
                 const fechaBase = new Date(proyeccion.fecha_reposicion);
                 if (isNaN(fechaBase.getTime())) {
                     return "Fecha inválida";
                 }
-                
+
                 // Ajustar fecha considerando días laborales
                 const fechaReposicion = new Date(fechaBase);
                 fechaReposicion.setDate(fechaBase.getDate() + Math.ceil(diasHastaReposicion));
-                
+
                 return fechaReposicion.toLocaleDateString('es-ES', {
                     day: 'numeric',
                     month: 'short'
@@ -2753,8 +2759,12 @@ const Dashboard = () => {
                                     <div className="flex items-center gap-2 mb-3 text-emerald-800">
                                         <FaTruck className="text-emerald-700" />
                                         <h4 className="text-sm font-semibold">Pedido Sugerido</h4>
+                                        <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
+                                            {producto.PROYECCIONES[0]?.mes || 'Primer mes'}
+                                        </span>
                                     </div>
                                     <div className="space-y-4">
+                                        {/* Déficit Actual */}
                                         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
                                             <div className="bg-red-100 p-2 rounded-full">
                                                 <FaExclamationTriangle className="text-red-600" />
@@ -2762,14 +2772,16 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-red-500">Déficit Actual</div>
                                                 <div className="text-lg font-bold text-gray-800">
-                                                    {formatNumber(producto.DEFICIT)} <span className="text-sm font-normal text-gray-500">unidades</span>
+                                                    {formatNumber(producto.PROYECCIONES[0]?.deficit || producto.DEFICIT)}
+                                                    <span className="text-sm font-normal text-gray-500"> unidades</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500">
-                                                    Punto de Reorden - Stock Total (Físico + Tránsito)
+                                                    Punto de Reorden: {formatNumber(producto.PROYECCIONES[0]?.punto_reorden || producto.PUNTO_REORDEN)}
                                                 </div>
                                             </div>
                                         </div>
 
+                                        {/* Cajas a Pedir */}
                                         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
                                             <div className="bg-amber-100 p-2 rounded-full">
                                                 <FaBox className="text-amber-600" />
@@ -2777,11 +2789,16 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-amber-600">Cajas a Pedir</div>
                                                 <div className="text-xl font-bold text-gray-800">
-                                                    {producto.CAJAS_A_PEDIR} <span className="text-sm font-normal text-gray-500">cajas</span>
+                                                    {producto.PROYECCIONES[0]?.cajas_a_pedir || producto.CAJAS_A_PEDIR}
+                                                    <span className="text-sm font-normal text-gray-500"> cajas</span>
+                                                </div>
+                                                <div className="text-xs text-slate-500">
+                                                    {producto.UNIDADES_POR_CAJA} unid./caja
                                                 </div>
                                             </div>
                                         </div>
 
+                                        {/* Unidades a Pedir */}
                                         <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
                                             <div className="bg-emerald-100 p-2 rounded-full">
                                                 <FaBoxOpen className="text-emerald-600" />
@@ -2789,21 +2806,64 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-emerald-600">Unidades a Pedir</div>
                                                 <div className="text-xl font-bold text-gray-800">
-                                                    {producto.UNIDADES_A_PEDIR} <span className="text-sm font-normal text-gray-500">unidades</span>
+                                                    {formatNumber(producto.PROYECCIONES[0]?.unidades_a_pedir || producto.UNIDADES_A_PEDIR)}
+                                                    <span className="text-sm font-normal text-gray-500"> unidades</span>
+                                                </div>
+                                                <div className="text-xs text-slate-500">
+                                                    {producto.PROYECCIONES[0]?.accion_requerida || "Stock suficiente"}
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
-                                            <div className="bg-blue-100 p-2 rounded-full">
-                                                <FaCalendarAlt className="text-blue-600" />
-                                            </div>
-                                            <div>
-                                                <div className="text-xs text-blue-600">Fecha Estimada Reposición</div>
-                                                <div className="text-lg font-bold text-gray-800">
-                                                    {producto.FECHA_REPOSICION}
+                                        {/* Fechas de Reposición */}
+                                        <div className="grid gap-3 md:grid-cols-2">
+                                            {/* Fecha de Solicitud */}
+                                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
+                                                <div className="bg-blue-100 p-2 rounded-full">
+                                                    <FaFileInvoice className="text-blue-600" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-blue-600">Solicitar antes de</div>
+                                                    <div className="text-sm font-bold text-gray-800">
+                                                        {producto.PROYECCIONES[0]?.fecha_solicitud || "No aplica"}
+                                                    </div>
                                                 </div>
                                             </div>
+
+                                            {/* Fecha de Arribo */}
+                                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs">
+                                                <div className="bg-purple-100 p-2 rounded-full">
+                                                    <FaTruckLoading className="text-purple-600" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-purple-600">Llegará aproximadamente</div>
+                                                    <div className="text-sm font-bold text-gray-800">
+                                                        {producto.PROYECCIONES[0]?.fecha_arribo || "No aplica"}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            {/* Fecha de Reposición */}
+                                            <div className="flex items-center gap-3 p-3 bg-white rounded-lg border border-emerald-50 shadow-xs md:col-span-2">
+                                                <div className="bg-green-100 p-2 rounded-full">
+                                                    <FaCalendarCheck className="text-green-600" />
+                                                </div>
+                                                <div>
+                                                    <div className="text-xs text-green-600">Fecha Crítica de Reposición</div>
+                                                    <div className="text-sm font-bold text-gray-800">
+                                                        {producto.PROYECCIONES[0]?.fecha_reposicion || producto.FECHA_REPOSICION}
+                                                    </div>
+                                                    <div className="text-xs text-slate-500">
+                                                        Lead time: {producto.CONFIGURACION.LEAD_TIME_REPOSICION} días
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Nota de Proyección */}
+                                        <div className="text-xs text-gray-500 italic pt-2 border-t border-emerald-100">
+                                            Basado en proyección de {producto.PROYECCIONES[0]?.mes || 'próximo mes'}.
+                                            Stock actual: {formatNumber(producto.STOCK_TOTAL)} unidades.
                                         </div>
                                     </div>
                                 </div>
@@ -2828,6 +2888,7 @@ const Dashboard = () => {
                                                 <tr className="bg-[#EDEDED]">
                                                     <th className="text-left text-sm text-[#001A30] font-medium p-3">Mes</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Inicial</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Total</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo Promedio</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Recibidos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Final</th>
@@ -2854,16 +2915,45 @@ const Dashboard = () => {
                                                         }]
                                                         : [];
 
+                                                    const stockTotal = proyeccion.stock_inicial + proyeccion.pedidos_recibidos;
+
                                                     return (
                                                         <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
-                                                                <div className="text-xs text-[#0074CF]">
-                                                                    Reposición: {calculateRepositionDate(proyeccion, producto)}
+                                                                <div className="text-xs text-[#0074CF] space-y-1 mt-1">
+                                                                    {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== "No aplica" && (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <FaCalendarAlt className="text-xs" />
+                                                                            <span>Solicitud: {proyeccion.fecha_solicitud}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== "No aplica" && (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <FaTruck className="text-xs" />
+                                                                            <span>Arribo: {proyeccion.fecha_arribo}</span>
+                                                                        </div>
+                                                                    )}
+                                                                    {proyeccion.fecha_reposicion && proyeccion.fecha_reposicion !== "No aplica" && (
+                                                                        <div className="flex items-center gap-1">
+                                                                            <FaBoxes className="text-xs" />
+                                                                            <span>Reposición: {proyeccion.fecha_reposicion}</span>
+                                                                        </div>
+                                                                    )}
                                                                 </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30]">
                                                                 {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium">
+                                                                <div className="flex flex-col items-center">
+                                                                    {formatNumber(stockInicial + pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                                    {pedidosRecibidos > 0 && (
+                                                                        <span className="text-xs text-[#00B0F0] flex items-center gap-1">
+                                                                            <FaTruck className="text-xs" /> {formatNumber(pedidosRecibidos)} en tránsito
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30]">
                                                                 {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
@@ -2919,60 +3009,119 @@ const Dashboard = () => {
                                     <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
                                         <h4 className="text-lg font-bold text-[#001A30] flex items-center gap-2">
                                             <FaInfoCircle className="text-[#0074CF]" />
-                                            Dinámica del Inventario
+                                            Dinámica del Inventario y Gestión de Pedidos
                                         </h4>
                                     </div>
 
                                     <div className="p-4 grid gap-4 md:grid-cols-2">
-
-                                        <div className="bg-[#00B0F0]/10 border-l-4 border-[#00B0F0] p-3">
+                                        {/* Flujo de Inventario - Mejorado */}
+                                        <div className="bg-[#00B0F0]/10 border-l-4 border-[#00B0F0] p-3 rounded-lg">
                                             <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
                                                 <FaBoxOpen className="text-[#00B0F0]" />
-                                                Flujo de Inventario
+                                                Flujo del Inventario Mensual
                                             </h5>
-                                            <div className="text-sm text-[#001A30] space-y-2">
-                                                <p>
-                                                    <span className="font-medium">Stock Inicial:</span> Inventario disponible al inicio del mes
-                                                </p>
-                                                <p>
-                                                    <span className="font-medium">Consumo:</span> Demanda proyectada para el mes
-                                                </p>
-                                                <p>
-                                                    <span className="font-medium">Pedidos Recibidos:</span> Unidades que llegan este mes (ordenadas previamente)
-                                                </p>
-                                                <p>
-                                                    <span className="font-medium">Stock Final:</span> Resultado después del consumo y recepción
-                                                </p>
+                                            <div className="text-sm text-[#001A30] space-y-3">
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FaBox className="text-[#00B0F0] text-xs" />
+                                                        Stock Inicial:
+                                                    </p>
+                                                    <p className="pl-5 text-xs text-[#0074CF]">
+                                                        Inventario disponible al inicio del mes, incluyendo:
+                                                        <span className="block mt-1">• Stock físico en almacén</span>
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FaChartLine className="text-[#00B0F0] text-xs" />
+                                                        Consumo Proyectado:
+                                                    </p>
+                                                    <p className="pl-5 text-xs text-[#0074CF]">
+                                                        Basado en el promedio de los últimos {Object.keys(producto.HISTORICO_CONSUMOS).length} meses
+                                                        <span className="block mt-1">• Ajustado por estacionalidad cuando aplica</span>
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FaTruck className="text-[#00B0F0] text-xs" />
+                                                        Stock Final:
+                                                    </p>
+                                                    <p className="pl-5 text-xs text-[#0074CF]">
+                                                        Resultado después de:
+                                                        <span className="block mt-1">• Consumo mensual proyectado</span>
+                                                        <span className="block">• Recepción de pedidos ordenados previamente</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
 
-                                        <div className="bg-[#0074CF]/10 border-l-4 border-[#0074CF] p-3">
+                                        {/* Gestión de Pedidos - Mejorado con fechas */}
+                                        <div className="bg-[#0074CF]/10 border-l-4 border-[#0074CF] p-3 rounded-lg">
                                             <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
                                                 <FaTruck className="text-[#0074CF]" />
-                                                Gestión de Pedidos
+                                                Gestión de Pedidos y Fechas Clave
                                             </h5>
-                                            <div className="text-sm text-[#001A30] space-y-2">
-                                                <p>
-                                                    <span className="font-medium">
-                                                        <FaTruckLoading className="inline mr-1 text-[#0074CF]" />
-                                                        Pedidos Pendientes:
-                                                    </span> Órdenes en camino para meses futuros
-                                                </p>
-                                                <p>
-                                                    <span className="font-medium">
-                                                        <FaCalendarAlt className="inline mr-1 text-[#0074CF]" />
-                                                        Fecha Reposición:
-                                                    </span> Día estimado de llegada de nuevos pedidos
-                                                </p>
-                                                <p>
-                                                    <span className="font-medium">
-                                                        <FiAlertTriangle className="inline mr-1 text-red-500" />
-                                                        Acción Requerida:
-                                                    </span> Cantidad a ordenar cuando el stock es insuficiente
-                                                </p>
+                                            <div className="text-sm text-[#001A30] space-y-3">
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FiAlertTriangle className="text-red-500 text-xs" />
+                                                        Cálculo de Unidades a Pedir:
+                                                    </p>
+                                                    <p className="pl-5 text-xs text-[#0074CF]">
+                                                        Se calculan cuando el stock proyectado cae bajo el punto de reorden:
+                                                        <span className="block mt-1">• Cantidad = (Punto de Reorden - Stock Final) + Margen de Seguridad</span>
+                                                        <span className="block">• Ajustado a múltiplos de {producto.UNIDADES_POR_CAJA} unidades por caja</span>
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FaCalendarAlt className="text-[#0074CF] text-xs" />
+                                                        Fechas Clave:
+                                                    </p>
+                                                    <div className="pl-5 text-xs text-[#0074CF] space-y-1">
+                                                        <div>
+                                                            <span className="font-semibold">Solicitud:</span>
+                                                            <span className="block">Último día para ordenar considerando lead time de {producto.CONFIGURACION.LEAD_TIME_REPOSICION} días</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-semibold">Arribo:</span>
+                                                            <span className="block">Fecha estimada de llegada (solicitud + lead time)</span>
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-semibold">Reposición Crítica:</span>
+                                                            <span className="block">Día exacto cuando el stock alcanza el punto de reorden</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <p className="font-medium flex items-center gap-1">
+                                                        <FaClock className="text-[#0074CF] text-xs" />
+                                                        Consideraciones:
+                                                    </p>
+                                                    <p className="pl-5 text-xs text-[#0074CF]">
+                                                        • Las fechas consideran días laborales
+                                                        <span className="block">• El lead time incluye producción, transporte y aduanas</span>
+                                                    </p>
+                                                </div>
                                             </div>
                                         </div>
+                                    </div>
 
+                                    {/* Nota Integradora */}
+                                    <div className="mt-4 p-3 bg-[#EDEDED] rounded-lg text-xs text-[#001A30]">
+                                        <div className="flex items-start gap-2">
+                                            <FaInfoCircle className="text-[#0074CF] mt-0.5 flex-shrink-0" />
+                                            <div>
+                                                <p className="font-medium">Cómo interpretar la proyección:</p>
+                                                <p>1. Cuando el stock final es menor al punto de reorden, se generan pedidos para el mes siguiente.</p>
+                                                <p>2. Los pedidos ordenados en un mes llegan en el siguiente mes (ej: ordenados en Enero, llegan en Febrero).</p>
+                                                <p>3. La fecha crítica de reposición se calcula considerando el consumo diario exacto hasta alcanzar el punto de reorden.</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

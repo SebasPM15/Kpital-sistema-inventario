@@ -10,7 +10,14 @@ class PythonService {
         this.dataDir = path.join(process.cwd(), 'ai_model', 'data');
         this.predictionsFile = path.join(this.dataDir, 'predicciones_completas.min.json');
         this.timeout = 300000; // 5 minutos
-        
+        // Constants from the Python function
+        this.leadTimeDays = 20;
+        this.alarmaStockDays = 22;
+        this.diasPuntoReorden = 44;
+        this.maxDiasReposicion = 22;
+        this.diasConsumoMensual = 20;
+
+
         // Asegurar que el directorio data existe
         fs.mkdir(this.dataDir, { recursive: true }).catch(err => {
             logger.error(`Error creating data directory: ${err}`);
@@ -170,42 +177,39 @@ class PythonService {
     }
 
     _recalculateProductValues(product) {
-        // 1. Calcular punto de reorden efectivo (considerando unidades en tránsito)
-        const effectivePuntoReorden = Math.max(
-            product.PUNTO_REORDEN - product.UNIDADES_TRANSITO,
-            product.STOCK_SEGURIDAD // Nunca pedir por debajo del stock de seguridad
-        );
+        // 1. Calcular el punto de reorden efectivo
+        const puntoReordenEfectivo = product.PUNTO_REORDEN;
         
-        // 2. Recalcular déficit y pedidos
-        product.DEFICIT = Math.max(effectivePuntoReorden - product.STOCK_FISICO, 0);
+        // 2. Calcular stock disponible (físico + en tránsito)
+        const stockDisponible = product.STOCK_FISICO + product.UNIDADES_TRANSITO;
         
+        // 3. Calcular déficit CORREGIDO (solo si el stock disponible es menor al punto de reorden)
+        product.DEFICIT = Math.max(puntoReordenEfectivo - stockDisponible, 0);
+        
+        // 4. Calcular cajas a pedir
         if (product.UNIDADES_POR_CAJA > 0) {
-            product.CAJAS_A_PEDIR = Math.ceil(
-                product.DEFICIT / product.UNIDADES_POR_CAJA
-            );
+            product.CAJAS_A_PEDIR = Math.ceil(product.DEFICIT / product.UNIDADES_POR_CAJA);
             product.UNIDADES_A_PEDIR = product.CAJAS_A_PEDIR * product.UNIDADES_POR_CAJA;
         } else {
             product.CAJAS_A_PEDIR = 0;
             product.UNIDADES_A_PEDIR = 0;
         }
     
-        // 3. Recalcular tiempos de cobertura
+        // 5. Calcular días de cobertura
         if (product.CONSUMO_DIARIO > 0) {
             product.DIAS_COBERTURA = Math.min(
-                product.STOCK_TOTAL / product.CONSUMO_DIARIO,
-                product.CONFIGURACION.DIAS_MAX_REPOSICION
+                stockDisponible / product.CONSUMO_DIARIO,
+                this.maxDiasReposicion
             );
             
-            // Recalcular fecha de reposición considerando lead time
-            const diasHastaReorden = Math.max(
-                (effectivePuntoReorden - product.STOCK_FISICO) / product.CONSUMO_DIARIO,
-                0
-            );
+            // Calcular fecha de reposición
+            const diasHastaReorden = product.DEFICIT > 0 ? 
+                (product.DEFICIT / product.CONSUMO_DIARIO) : 0;
             
             const fechaReposicion = new Date();
             fechaReposicion.setDate(
                 fechaReposicion.getDate() + 
-                Math.max(diasHastaReorden - product.CONFIGURACION.LEAD_TIME_REPOSICION, 0)
+                Math.max(diasHastaReorden - this.leadTimeDays, 0)
             );
             
             product.FECHA_REPOSICION = fechaReposicion.toISOString().split('T')[0];
@@ -216,138 +220,176 @@ class PythonService {
     }
 
     _recalculateProjections(product) {
-        const leadTime = product.CONFIGURACION.LEAD_TIME_REPOSICION;
         const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
+        const diasConsumoMensual = 20; // Días de consumo por mes
         
-        // Variables de seguimiento
-        let currentStock = product.STOCK_FISICO;
-        let transitUnits = product.UNIDADES_TRANSITO;
+        // 1. Configuración inicial
+        const fechaInicioProyeccion = new Date(product.PROYECCIONES[0]?.fecha_inicio_proyeccion || '2025-02-21');
+        const consumoDiarioBase = product.CONSUMO_DIARIO > 0 ? product.CONSUMO_DIARIO : 
+                                (product.PROM_CONS_PROYEC || product.CONSUMO_PROMEDIO) / product.CONFIGURACION.DIAS_LABORALES_MES;
+        
+        // 2. Función para calcular consumo mensual dinámico
+        const calcularConsumoMensual = (month, year) => {
+            // A. Obtener histórico para este mes específico
+            const mesHistorico = monthNames[month].substring(0, 3);
+            let historicos = [];
+            
+            // Buscar consumos históricos para este mes en años anteriores
+            for (const [key, value] of Object.entries(product.HISTORICO_CONSUMOS || {})) {
+                if (key.includes(mesHistorico)) {
+                    historicos.push(parseFloat(value));
+                }
+            }
+            
+            // B. Calcular promedio histórico para este mes
+            const historicoPromedio = historicos.length > 0 ? 
+                historicos.reduce((sum, val) => sum + val, 0) / historicos.length : 
+                consumoDiarioBase * diasConsumoMensual;
+            
+            // C. Calcular tendencia reciente (últimos 3 meses)
+            let factorTendencia = 1.0;
+            const historicoKeys = Object.keys(product.HISTORICO_CONSUMOS || {});
+            if (historicoKeys.length >= 3) {
+                const ultimos3 = historicoKeys.slice(-3).map(k => parseFloat(product.HISTORICO_CONSUMOS[k]));
+                if (ultimos3.length >= 2) {
+                    const diff = ultimos3[1] - ultimos3[0];
+                    const crecimiento = ultimos3[0] !== 0 ? diff / ultimos3[0] : 0;
+                    factorTendencia = Math.min(1.5, Math.max(0.5, 1 + crecimiento));
+                }
+            }
+            
+            // D. Combinación inteligente (60% histórico, 40% base con tendencia)
+            const consumoBaseConTendencia = consumoDiarioBase * diasConsumoMensual * factorTendencia;
+            const consumoMensual = (0.6 * historicoPromedio) + (0.4 * consumoBaseConTendencia);
+            
+            // E. Asegurar mínimo razonable (no menos del 50% del base)
+            return Math.max(consumoMensual, consumoDiarioBase * diasConsumoMensual * 0.5);
+        };
+        
+        // 3. Cálculos básicos (dinámicos por mes)
+        const stockSeguridadBase = consumoDiarioBase * product.CONFIGURACION.DIAS_STOCK_SEGURIDAD;
+        const puntoReordenBase = consumoDiarioBase * product.CONFIGURACION.DIAS_PUNTO_REORDEN;
+        
+        // 4. Inicialización de estado
+        let currentStock = product.STOCK_TOTAL;
+        let transitUnits = 0;
         let pendingOrders = {};
         
-        // Obtener fecha base del primer mes de proyección
-        const [firstMonth, firstYear] = product.PROYECCIONES[0].mes.split('-');
-        const baseDate = new Date(`${firstYear}-${monthNames.indexOf(firstMonth) + 1}-01`);
-        
-        product.PROYECCIONES.forEach((proj, index) => {
-            try {
-                const [monthStr, yearStr] = proj.mes.split('-');
-                const monthIndex = monthNames.findIndex(m => m === monthStr.toUpperCase());
-                const year = parseInt(yearStr, 10);
+        // 5. Generar proyecciones para 6 meses
+        product.PROYECCIONES = Array(6).fill().map((_, index) => {
+            const projectionDate = new Date(fechaInicioProyeccion);
+            projectionDate.setMonth(fechaInicioProyeccion.getMonth() + index);
+            
+            const month = projectionDate.getMonth();
+            const year = projectionDate.getFullYear();
+            const monthStr = monthNames[month];
+            const mesKey = `${monthStr}-${year}`;
+            
+            // A. Calcular consumo dinámico para este mes
+            const consumoMensual = calcularConsumoMensual(month, year);
+            const consumoDiario = consumoMensual / diasConsumoMensual;
+            const stockSeguridad = consumoDiario * product.CONFIGURACION.DIAS_STOCK_SEGURIDAD;
+            const puntoReorden = consumoDiario * product.CONFIGURACION.DIAS_PUNTO_REORDEN;
+            
+            // B. Calcular stock inicial para este mes
+            let stockInicialMes = currentStock;
+            let pedidosRecibidos = 0;
+            
+            // C. Aplicar pedidos pendientes programados
+            const pedidosEsteMes = pendingOrders[mesKey] || 0;
+            pedidosRecibidos += pedidosEsteMes;
+            currentStock += pedidosEsteMes;
+            delete pendingOrders[mesKey];
+            
+            // D. Calcular consumo y stock resultante
+            const stockAfterConsumption = Math.max(currentStock - consumoMensual, 0);
+            
+            // E. Calcular déficit
+            const stockDisponible = stockAfterConsumption + transitUnits;
+            const deficit = Math.max(puntoReorden - stockDisponible, 0);
+            
+            // F. Determinar necesidad de pedido
+            let unidadesAPedir = 0;
+            let fechaReposicion = "No aplica";
+            let fechaSolicitud = "No aplica";
+            let fechaArribo = "No aplica";
+            
+            if (deficit > 0 && consumoDiario > 0) {
+                unidadesAPedir = Math.ceil(deficit / product.UNIDADES_POR_CAJA) * product.UNIDADES_POR_CAJA;
                 
-                // 1. Calcular fecha base para este mes de proyección
-                const projectionDate = new Date(year, monthIndex, 1);
-                
-                // 2. Inicializar stock inicial
-                proj.stock_inicial = index === 0 ? product.STOCK_TOTAL : product.PROYECCIONES[index - 1].stock_proyectado;
-    
-                // 3. Aplicar unidades en tránsito solo en el primer mes
-                if (index === 0 && transitUnits > 0) {
-                    proj.pedidos_recibidos = transitUnits;
-                    currentStock += transitUnits;
-                    proj.unidades_en_transito = transitUnits;
-                    proj.pedidos_pendientes = product.PEDIDOS_PENDIENTES || {};
-                    transitUnits = 0;
-                } else {
-                    proj.pedidos_recibidos = 0;
-                    proj.unidades_en_transito = 0;
-                    proj.pedidos_pendientes = {};
-                }
-                
-                // 4. Aplicar pedidos pendientes que llegan ESTE mes
-                const arrivalMonthKey = `${monthStr}-${yearStr}`;
-                const pedidosRecibidos = pendingOrders[arrivalMonthKey] || 0;
-                if (pedidosRecibidos > 0) {
-                    currentStock += pedidosRecibidos;
-                    proj.pedidos_recibidos += pedidosRecibidos;
-                    delete pendingOrders[arrivalMonthKey];
-                }
-                
-                // 5. Calcular consumo y stock después de consumo
-                const stockAfterConsumption = Math.max(currentStock - proj.consumo_mensual, 0);
-                
-                // 6. Calcular punto de reorden DINÁMICO
-                const puntoReordenDinamico = proj.consumo_diario * product.CONFIGURACION.DIAS_PUNTO_REORDEN;
-                
-                // 7. Calcular déficit
-                const effectivePuntoReorden = Math.max(
-                    puntoReordenDinamico - transitUnits,
-                    proj.stock_seguridad
+                const diasHastaReposicion = Math.max(
+                    (puntoReorden - stockDisponible) / consumoDiario - product.CONFIGURACION.LEAD_TIME_REPOSICION, 
+                    0
                 );
                 
-                // 8. DECISIÓN: ¿Necesitamos pedir más?
-                let newUnitsToOrder = 0;
-                if (stockAfterConsumption < effectivePuntoReorden) {
-                    const deficit = effectivePuntoReorden - stockAfterConsumption;
-                    newUnitsToOrder = Math.ceil(deficit / product.UNIDADES_POR_CAJA) * product.UNIDADES_POR_CAJA;
-                    
-                    // Calcular fechas basadas en el mes de proyección
-                    const fechaSolicitud = new Date(projectionDate);
-                    fechaSolicitud.setDate(1);
-                    
-                    // Calcular fecha de arribo (fecha de solicitud + lead time)
-                    const fechaArribo = new Date(fechaSolicitud);
-                    fechaArribo.setDate(fechaSolicitud.getDate() + leadTime);
-                    
-                    // Programar llegada para el mes siguiente
-                    let nextMonthKey;
-                    if (index < product.PROYECCIONES.length - 1) {
-                        const nextMonth = product.PROYECCIONES[index + 1];
-                        nextMonthKey = nextMonth.mes;
-                    } else {
-                        const nextMonthDate = new Date(projectionDate);
-                        nextMonthDate.setMonth(projectionDate.getMonth() + 1);
-                        nextMonthKey = `${monthNames[nextMonthDate.getMonth()]}-${nextMonthDate.getFullYear()}`;
-                    }
-                    pendingOrders[nextMonthKey] = (pendingOrders[nextMonthKey] || 0) + newUnitsToOrder;
-                    
-                    // Asignar fechas a la proyección
-                    proj.fecha_solicitud = fechaSolicitud.toISOString().split('T')[0];
-                    proj.fecha_arribo = fechaArribo.toISOString().split('T')[0];
-                } else {
-                    proj.fecha_solicitud = "No aplica";
-                    proj.fecha_arribo = "No aplica";
-                }
+                fechaReposicion = new Date(projectionDate);
+                fechaReposicion.setDate(projectionDate.getDate() + Math.ceil(diasHastaReposicion));
+                fechaReposicion = fechaReposicion.toISOString().split('T')[0];
                 
-                // 9. Actualizar valores de la proyección
-                proj.stock_proyectado = stockAfterConsumption;
-                proj.unidades_a_pedir = newUnitsToOrder;
-                proj.cajas_a_pedir = Math.ceil(newUnitsToOrder / product.UNIDADES_POR_CAJA);
-                proj.punto_reorden = puntoReordenDinamico;
-                proj.deficit = newUnitsToOrder > 0 ? effectivePuntoReorden - stockAfterConsumption : 0;
+                fechaSolicitud = new Date(projectionDate);
+                fechaSolicitud.setDate(1);
+                fechaArribo = new Date(fechaSolicitud);
+                fechaArribo.setDate(fechaSolicitud.getDate() + product.CONFIGURACION.LEAD_TIME_REPOSICION);
                 
-                // 10. Calcular tiempo de cobertura y fecha de reposición
-                if (proj.consumo_diario > 0) {
-                    proj.tiempo_cobertura = Math.min(
-                        Math.max(stockAfterConsumption - proj.stock_seguridad, 0) / proj.consumo_diario,
-                        product.CONFIGURACION.DIAS_MAX_REPOSICION
-                    );
-                    
-                    // Calcular fecha de reposición basada en el mes de proyección
-                    const diasHastaReposicion = Math.max(
-                        (puntoReordenDinamico - stockAfterConsumption) / proj.consumo_diario,
-                        0
-                    );
-                    
-                    const fechaReposicion = new Date(projectionDate);
-                    fechaReposicion.setDate(fechaReposicion.getDate() + Math.max(diasHastaReposicion - leadTime, 0));
-                    
-                    // Asegurar que la fecha no sea anterior a la fecha base
-                    if (fechaReposicion < baseDate) {
-                        fechaReposicion.setDate(baseDate.getDate() + Math.max(diasHastaReposicion - leadTime, 0));
-                    }
-                    
-                    proj.fecha_reposicion = fechaReposicion.toISOString().split('T')[0];
-                }
+                fechaSolicitud = fechaSolicitud.toISOString().split('T')[0];
+                fechaArribo = fechaArribo.toISOString().split('T')[0];
                 
-                // 11. Preparar para siguiente mes
-                currentStock = stockAfterConsumption;
-                proj.pedidos_pendientes = { ...pendingOrders };
+                // Programar llegada para el mes siguiente
+                const nextMonth = new Date(projectionDate);
+                nextMonth.setMonth(projectionDate.getMonth() + 1);
+                const nextMonthKey = `${monthNames[nextMonth.getMonth()]}-${nextMonth.getFullYear()}`;
                 
-            } catch (error) {
-                logger.error(`Error procesando proyección para ${proj.mes}: ${error.message}`);
-                throw error;
+                pendingOrders[nextMonthKey] = (pendingOrders[nextMonthKey] || 0) + unidadesAPedir;
             }
+            
+            // G. Preparar siguiente mes
+            currentStock = stockAfterConsumption;
+            
+            return {
+                mes: mesKey,
+                stock_inicial: stockInicialMes,
+                stock_proyectado: stockAfterConsumption,
+                consumo_mensual: consumoMensual,
+                consumo_diario: consumoDiario,
+                stock_seguridad: stockSeguridad,
+                stock_minimo: consumoMensual + stockSeguridad,
+                punto_reorden: puntoReorden,
+                deficit: deficit,
+                cajas_a_pedir: Math.ceil(unidadesAPedir / product.UNIDADES_POR_CAJA),
+                unidades_a_pedir: unidadesAPedir,
+                unidades_en_transito: transitUnits,
+                pedidos_pendientes: {...pendingOrders},
+                accion_requerida: unidadesAPedir > 0 ? 
+                    `Pedir ${Math.ceil(unidadesAPedir / product.UNIDADES_POR_CAJA)} cajas` : 
+                    "Stock suficiente",
+                pedidos_recibidos: pedidosRecibidos,
+                fecha_reposicion: fechaReposicion,
+                fecha_solicitud: fechaSolicitud,
+                fecha_arribo: fechaArribo,
+                tiempo_cobertura: consumoDiario > 0 ? 
+                    Math.min(stockDisponible / consumoDiario, product.CONFIGURACION.DIAS_MAX_REPOSICION) : 0,
+                alerta_stock: stockAfterConsumption < (consumoDiario * product.CONFIGURACION.DIAS_ALARMA_STOCK)
+            };
         });
+        
+        // 6. Actualizar métricas
+        product.metricas = {
+            roturasStock: product.PROYECCIONES.filter(p => p.stock_proyectado <= 0).length,
+            totalPedidos: product.PROYECCIONES.reduce((sum, p) => sum + p.unidades_a_pedir, 0),
+            promedioCobertura: product.PROYECCIONES.reduce((sum, p) => sum + (p.tiempo_cobertura || 0), 0) / 
+                             product.PROYECCIONES.length,
+            variabilidadConsumo: this._calcularVariabilidadConsumo(product.PROYECCIONES)
+        };
+    }
+    
+    // Función auxiliar para calcular variabilidad de consumos
+    _calcularVariabilidadConsumo(proyecciones) {
+        const consumos = proyecciones.map(p => p.consumo_mensual);
+        if (consumos.length < 2) return 0;
+        
+        const mean = consumos.reduce((sum, val) => sum + val, 0) / consumos.length;
+        const variance = consumos.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / consumos.length;
+        return Math.sqrt(variance) / mean; // Coeficiente de variación
     }
 
     async _savePredictions(predictions) {
