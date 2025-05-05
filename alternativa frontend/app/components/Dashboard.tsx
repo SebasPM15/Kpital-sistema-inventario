@@ -1085,44 +1085,26 @@ const Dashboard = () => {
         try {
             const pdf = new jsPDF('p', 'mm', 'a4') as jsPDF & { lastAutoTable?: { finalY: number } };
 
-            // Configuración de márgenes y espacios
-            const margin = {
-                left: 15,
-                right: 15,
-                top: 15,
-                bottom: 20
-            };
+            const margin = { left: 15, right: 15, top: 15, bottom: 20 };
             const pageWidth = 210;
-            const contentWidth = pageWidth - margin.left - margin.right;
             let currentY = margin.top;
 
-            // Configuración de fuentes y colores corporativos
-            pdf.setFont('helvetica');
-            const primaryBlue: [number, number, number] = [0, 50, 104]; // #003268
-            const oceanBlue: [number, number, number] = [0, 116, 207]; // #0074CF
-            const cyan: [number, number, number] = [0, 176, 240]; // #00B0F0
-            const darkBlue: [number, number, number] = [0, 26, 48]; // #001A30
-            const smokeColor: [number, number, number] = [237, 237, 237]; // #EDEDED
+            const primaryBlue: [number, number, number] = [0, 50, 104];
+            const oceanBlue: [number, number, number] = [0, 116, 207];
+            const darkBlue: [number, number, number] = [0, 26, 48];
+            const smokeColor: [number, number, number] = [237, 237, 237];
 
-            // --- ENCABEZADO CON LOGO ---
             const logoData = await getBase64ImageFromURL('/Logo_Kpital.jpg') as string;
+            const logoMaxHeight = 20;
+            const logoMaxWidth = 60;
 
-            // Ajuste profesional del logo
-            const logoMaxHeight = 20; // Altura máxima en mm
-            const logoMaxWidth = 60;  // Ancho máximo en mm
-
-            // Obtener dimensiones reales de la imagen
             const img = new Image();
             img.src = logoData;
-            await new Promise((resolve) => {
-                img.onload = resolve;
-            });
+            await new Promise((resolve) => { img.onload = resolve; });
 
             const aspectRatio = img.width / img.height;
             let logoWidth = logoMaxWidth;
             let logoHeight = logoMaxHeight;
-
-            // Ajustar para mantener proporciones
             if (img.width > img.height) {
                 logoHeight = logoWidth / aspectRatio;
                 if (logoHeight > logoMaxHeight) {
@@ -1137,140 +1119,155 @@ const Dashboard = () => {
                 }
             }
 
-            // Posición centrada
             const logoX = (pageWidth - logoWidth) / 2;
-            const logoY = margin.top;
+            pdf.addImage(logoData, 'JPEG', logoX, currentY, logoWidth, logoHeight, undefined, 'FAST');
+            currentY += logoHeight + 4;
 
-            pdf.addImage(logoData, 'JPEG', logoX, logoY, logoWidth, logoHeight, undefined, 'FAST');
-            currentY = logoY + logoHeight + 10;
+            // --- Datos de empresa centrados bajo el logo ---
+            pdf.setFontSize(9);
+            pdf.setTextColor(60, 60, 60);
+            const empresaData = [
+                'Kpital Link',
+                'RUC: 1793153682001',
+                'Dirección: Catalina Aldaz N34-155 y Portugal',
+                'Teléfono: 0995099217',
+                'Email: pricing@kpitalink.com'
+            ];
+            empresaData.forEach((line, i) => {
+                pdf.text(line, pageWidth / 2, currentY + (i * 4), { align: 'center' });
+            });
+            currentY += empresaData.length * 4 + 6;
 
-            // --- TÍTULO DEL DOCUMENTO ---
-            pdf.setFontSize(16);
+            // --- Título central ---
             pdf.setFont('helvetica', 'bold');
+            pdf.setFontSize(14);
             pdf.setTextColor(...darkBlue);
             pdf.text('ORDEN DE COMPRA', pageWidth / 2, currentY, { align: 'center' });
             currentY += 10;
 
-            // Línea decorativa
-            pdf.setDrawColor(...oceanBlue);
-            pdf.setLineWidth(0.5);
-            pdf.line(margin.left, currentY, pageWidth - margin.right, currentY);
-            currentY += 15;
-
-            // --- DATOS DE LA EMPRESA ---
+            // --- Datos del proveedor y enviar a ---
             pdf.setFontSize(10);
-            pdf.setTextColor(100, 100, 100);
+            pdf.setFont('helvetica', 'normal');
+            pdf.setTextColor(60, 60, 60);
 
-            const empresaData = [
-                `Kpital Link`,
-                `RUC: 1793153682001`,
-                `Dirección: Catalina Aldaz N34-155 y Portugal`,
-                `Teléfono: 0995099217`,
-                `Email: pricing@kpitalink.com`
+            const proveedorData = [
+                'PROVEEDOR:',
+                'Coveright España',
+                'Polígono Industrial can Roca C/SNT',
+                'Martí S/N e-08107 Martorelles',
+                'BARCELONA - SPAIN',
+                'TEL: 34935049510',
+                'FAX: 34935977910',
+                'RUC: 09132000'
             ];
 
-            empresaData.forEach((line, index) => {
-                pdf.text(line, margin.left, currentY + (index * 5));
+            const enviarAData = [
+                'ENVIAR A:',
+                'AGLOMERADOS COTOPAXI S.A',
+                'Av. De Los Granados E12-70 e Isla Marchena',
+                'QUITO - ECUADOR',
+                'TEL: 5933 3963000',
+                'FAX: 5933 3963091',
+                'RUC: 0590028665001'
+            ];
+
+            proveedorData.forEach((line, i) => {
+                pdf.text(line, margin.left, currentY + (i * 5));
+            });
+            enviarAData.forEach((line, i) => {
+                pdf.text(line, pageWidth - margin.right, currentY + (i * 5), { align: 'right' });
             });
 
-            // --- DATOS DEL DOCUMENTO ---
-            const today = new Date();
-            const formattedFechaOrden = today.toLocaleDateString('es-ES', {
-                day: '2-digit',
-                month: 'long',
-                year: 'numeric'
-            }).toUpperCase();
+            const fecha = new Date();
+            const monthsES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+            const formattedFecha = `${fecha.getDate().toString().padStart(2, '0')} DE ${monthsES[fecha.getMonth()]} DE ${fecha.getFullYear()}`;
+            const ordenNum = `ORD-${fecha.toISOString().split('T')[0].replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-            const fechaCodigo = today.toISOString().split('T')[0].replace(/-/g, '');
-            const numeroOrden = `ORD-${fechaCodigo}-${Math.floor(1000 + Math.random() * 9000)}`;
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`Número: ${ordenNum}`, pageWidth - margin.right, currentY + 42, { align: 'right' });
+            pdf.text(`Fecha: ${formattedFecha}`, pageWidth - margin.right, currentY + 47, { align: 'right' });
+            pdf.text('Transporte: Terrestre / Courier / Marítimo', pageWidth - margin.right, currentY + 52, { align: 'right' });
+            pdf.text('Duración estimada: 22 días laborables', pageWidth - margin.right, currentY + 57, { align: 'right' });
 
-            pdf.text(`Número: ${numeroOrden}`, pageWidth - margin.right, currentY, { align: 'right' });
-            pdf.text(`Fecha: ${formattedFechaOrden}`, pageWidth - margin.right, currentY + 5, { align: 'right' });
-            currentY += 30;
+            currentY += 50;
 
-            // --- DATOS DEL SOLICITANTE ---
+            // --- Datos del solicitante ---
             const userString = localStorage.getItem('user');
             const user = userString ? JSON.parse(userString) : {};
 
-            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(...primaryBlue);
             pdf.text('DATOS DEL SOLICITANTE', margin.left, currentY);
-            currentY += 5;
-
             pdf.setFont('helvetica', 'normal');
             pdf.setTextColor(80, 80, 80);
-
             const clienteData = [
                 `Nombre: ${user?.nombre || 'No especificado'}`,
                 `Email: ${user?.email || 'No especificado'}`,
                 `Teléfono: ${user?.celular || 'No especificado'}`
             ];
-
             clienteData.forEach((line, index) => {
-                pdf.text(line, margin.left, currentY + (index * 5));
+                pdf.text(line, margin.left, currentY + 5 + (index * 5));
             });
-            currentY += 20;
+            currentY += 25;
 
-            // --- DETALLE DE PRODUCTOS ---
-            const productsAPedir = products.filter((product) => product.CAJAS_A_PEDIR && product.CAJAS_A_PEDIR > 0);
-
+            // --- Tabla de productos ---
+            const productsAPedir = products.filter((p) => p.CAJAS_A_PEDIR && p.CAJAS_A_PEDIR > 0);
             if (productsAPedir.length === 0) {
                 alert('No hay productos con cajas a pedir.');
                 return;
             }
 
-            // Preparar datos de tabla
-            const tableData = productsAPedir.map((product) => [
-                product.CODIGO || '-',
-                product.DESCRIPCION || '-',
-                product.UNIDADES_A_PEDIR ? product.UNIDADES_A_PEDIR.toString() : '-',
-                product.CAJAS_A_PEDIR ? product.CAJAS_A_PEDIR.toString() : '-'
+            const tableData = productsAPedir.map((p, index) => [
+                (index + 1).toString(),
+                p.CODIGO || '-',
+                p.DESCRIPCION || '-',
+                p.UNIDADES_A_PEDIR?.toString() || '-',
+                p.CAJAS_A_PEDIR?.toString() || '-',
+                `$${(p.PRECIO_UNITARIO || 0).toFixed(2)}`,
+                `$${((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)).toFixed(2)}`,
+                new Date().toLocaleDateString('es-ES')
             ]);
 
-            // Configuración de la tabla
             autoTable(pdf, {
                 startY: currentY,
-                head: [['Código', 'Descripción', 'Unidades', 'Cajas']],
+                head: [['#', 'Código', 'Descripción', 'Unidades', 'Cajas', 'P. Unitario', 'Total', 'F. Solicitud']],
                 body: tableData,
                 margin: { left: margin.left, right: margin.right },
-                headStyles: {
-                    fillColor: primaryBlue,
-                    textColor: [255, 255, 255],
-                    fontStyle: 'bold',
-                    halign: 'center',
-                    fontSize: 9
-                },
-                bodyStyles: {
-                    textColor: [50, 50, 50],
-                    fontSize: 9,
-                    cellPadding: 3
-                },
-                alternateRowStyles: {
-                    fillColor: smokeColor
-                },
+                headStyles: { fillColor: primaryBlue, textColor: 255, fontSize: 9, halign: 'center' },
+                bodyStyles: { textColor: 50, fontSize: 9 },
+                alternateRowStyles: { fillColor: smokeColor },
                 columnStyles: {
-                    0: { cellWidth: 25, halign: 'center' },
-                    1: { cellWidth: 'auto' },
-                    2: { cellWidth: 25, halign: 'center' },
-                    3: { cellWidth: 20, halign: 'center' }
-                },
-                styles: {
-                    lineColor: [200, 200, 200],
-                    lineWidth: 0.2
+                    0: { halign: 'center', cellWidth: 8 },
+                    1: { cellWidth: 22, halign: 'center' },
+                    2: { cellWidth: 'auto' },
+                    3: { cellWidth: 20, halign: 'center' },
+                    4: { cellWidth: 18, halign: 'center' },
+                    5: { cellWidth: 25, halign: 'right' },
+                    6: { cellWidth: 25, halign: 'right' },
+                    7: { cellWidth: 28, halign: 'center' }
                 }
             });
 
-            // --- TOTALES ---
+            // --- Total general ---
+            const totalOrden = productsAPedir.reduce((sum, p) => sum + ((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)), 0);
             currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
+            pdf.setFontSize(10);
+            pdf.setFont('helvetica', 'bold');
+            pdf.text(`TOTAL ORDEN: $${totalOrden.toFixed(2)}`, pageWidth - margin.right, currentY, { align: 'right' });
 
-            // --- PIE DE PÁGINA ---
+            // --- Línea de firma ---
+            currentY += 20;
+            pdf.setLineWidth(0.3);
+            pdf.line(margin.left, currentY, margin.left + 60, currentY);
+            pdf.setFontSize(9);
+            pdf.setFont('helvetica', 'normal');
+            pdf.text(user?.nombre || 'Firma solicitante', margin.left, currentY + 5);
+
+            // --- Pie de página ---
             pdf.setFontSize(8);
             pdf.setTextColor(100, 100, 100);
             pdf.text('Documento generado automáticamente - © Kpital Link', pageWidth / 2, 290, { align: 'center' });
 
-            // Guardar PDF
-            pdf.save(`Orden_Compra_${numeroOrden}.pdf`);
-
+            pdf.save(`Orden_Compra_${ordenNum}.pdf`);
         } catch (error) {
             console.error('Error al generar el PDF:', error);
             alert('Ocurrió un error al generar el PDF. Por favor intente nuevamente.');
