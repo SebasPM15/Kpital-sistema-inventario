@@ -2488,68 +2488,6 @@ const Dashboard = () => {
 
         const variationData = generateVariationChartData(producto.HISTORICO_CONSUMOS || {});
 
-        // Función para formatear fecha con día
-        const formatDateWithDay = (dateStr: string | number | Date) => {
-            if (!dateStr || dateStr === "No aplica") return dateStr;
-
-            try {
-                const date = new Date(dateStr);
-                // Verificar si la fecha es válida
-                if (isNaN(date.getTime())) {
-                    console.warn(`Fecha inválida recibida: ${dateStr}`);
-                    return "Fecha inválida";
-                }
-
-                return date.toLocaleDateString('es-ES', {
-                    day: 'numeric',
-                    month: 'short',
-                    timeZone: 'UTC' // Asegurar consistencia en diferentes zonas horarias
-                }).replace(/^(\d)/, '$1'); // Eliminar ceros iniciales en el día
-            } catch (error) {
-                console.error(`Error formateando fecha ${dateStr}:`, error);
-                return dateStr;
-            }
-        };
-
-        // Nueva función para calcular fecha de reposición precisa
-        const calculateRepositionDate = (proyeccion: any, producto: any) => {
-            if (!proyeccion.fecha_reposicion || proyeccion.fecha_reposicion === "No aplica") {
-                return "No aplica";
-            }
-
-            try {
-                const consumoDiario = proyeccion.consumo_diario || producto.CONSUMO_DIARIO;
-                const diasPuntoReorden = producto.CONFIGURACION.DIAS_PUNTO_REORDEN;
-                const leadTime = producto.CONFIGURACION.LEAD_TIME_REPOSICION;
-
-                const stockDespuesConsumo = proyeccion.stock_proyectado;
-                const puntoReorden = consumoDiario * diasPuntoReorden;
-
-                // Calcular días exactos hasta reposición
-                const diasHastaReposicion = Math.max(
-                    (puntoReorden - stockDespuesConsumo) / consumoDiario,
-                    0
-                );
-
-                const fechaBase = new Date(proyeccion.fecha_reposicion);
-                if (isNaN(fechaBase.getTime())) {
-                    return "Fecha inválida";
-                }
-
-                // Ajustar fecha considerando días laborales
-                const fechaReposicion = new Date(fechaBase);
-                fechaReposicion.setDate(fechaBase.getDate() + Math.ceil(diasHastaReposicion));
-
-                return fechaReposicion.toLocaleDateString('es-ES', {
-                    day: 'numeric',
-                    month: 'short'
-                });
-            } catch (error) {
-                console.error("Error calculando fecha de reposición:", error);
-                return proyeccion.fecha_reposicion;
-            }
-        };
-
         return (
             <div className="fixed inset-0 bg-slate-500/30 backdrop-blur-sm flex items-start py-10 justify-center p-4 z-50 overflow-y-auto">
                 <div className="bg-white rounded-xl p-6 w-full max-w-6xl shadow-2xl border border-slate-200 my-8" ref={chartRef}>
@@ -2660,21 +2598,23 @@ const Dashboard = () => {
 
                             <AlertConfig
                                 product={producto}
-                                onConfigure={async (phone) => {
+                                onConfigure={async (email, isManual = false) => {
                                     const response = await fetch(`${API_URL}/alertas/stock`, {
                                         method: 'POST',
                                         headers: {
                                             'Content-Type': 'application/json',
+                                            'Authorization': `Bearer ${localStorage.getItem('token')}`
                                         },
                                         body: JSON.stringify({
                                             predictionData: selectedPrediction,
-                                            phone: `593${phone}`
+                                            email: email,
+                                            isManual: isManual // Añadimos este parámetro
                                         })
                                     });
 
                                     if (!response.ok) {
                                         const error = await response.json();
-                                        throw new Error(error.message || 'Error al enviar alerta');
+                                        throw new Error(error.message || `Error al ${isManual ? 'reenviar' : 'enviar'} alerta por correo`);
                                     }
 
                                     return response.json();
@@ -2689,6 +2629,9 @@ const Dashboard = () => {
                                     <div className="flex items-center gap-2 mb-3 text-indigo-700">
                                         <FaChartLine className="text-indigo-600" />
                                         <h4 className="text-sm font-semibold">Umbrales Clave</h4>
+                                        <span className="text-xs bg-indigo-100 text-indigo-800 px-2 py-1 rounded-full">
+                                            {producto.PROYECCIONES[0]?.mes || 'Proyección actual'}
+                                        </span>
                                     </div>
                                     <div className="space-y-4">
 
@@ -2729,7 +2672,7 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-indigo-500">Punto de Reorden</div>
                                                 <div className="text-lg font-bold text-gray-800">
-                                                    {formatNumber(producto.PUNTO_REORDEN)} <span className="text-sm font-normal text-gray-500">unidades</span>
+                                                    {formatNumber(producto.PROYECCIONES[0]?.punto_reorden || 0)}  <span className="text-sm font-normal text-gray-500">unidades</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500">
                                                     Consumo Diario × {producto.CONFIGURACION.DIAS_PUNTO_REORDEN} días de cobertura
@@ -2886,10 +2829,10 @@ const Dashboard = () => {
                                                     <th className="text-left text-sm text-[#001A30] font-medium p-3">Mes</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Inicial</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Total</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo Promedio</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Recibidos</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Recibidos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Final</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos Sugeridos</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Acción</th>
                                                 </tr>
                                             </thead>
@@ -2899,12 +2842,10 @@ const Dashboard = () => {
                                                         ? producto.STOCK_TOTAL
                                                         : producto.PROYECCIONES[index - 1].stock_proyectado;
 
-                                                    // Pedidos que llegan ESTE mes (ordenados el mes anterior)
                                                     const pedidosRecibidos = index > 0
                                                         ? producto.PROYECCIONES[index - 1].unidades_a_pedir || 0
                                                         : 0;
 
-                                                    // Pedidos pendientes para meses FUTUROS (los que se ordenan este mes)
                                                     const pedidosPendientes = proyeccion.unidades_a_pedir > 0
                                                         ? [{
                                                             mes: producto.PROYECCIONES[index + 1]?.mes || 'Mes próximo',
@@ -2918,79 +2859,77 @@ const Dashboard = () => {
                                                         <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
-                                                                <div className="text-xs text-[#0074CF] space-y-1 mt-1">
+                                                                <div className="text-xs text-[#0074CF] flex flex-col gap-1 mt-1 whitespace-nowrap">
                                                                     {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== "No aplica" && (
-                                                                        <div className="flex items-center gap-1">
+                                                                        <span className="inline-flex items-center gap-1">
                                                                             <FaCalendarAlt className="text-xs" />
-                                                                            <span>Solicitud: {proyeccion.fecha_solicitud}</span>
-                                                                        </div>
+                                                                            Solicitud: {proyeccion.fecha_solicitud}
+                                                                        </span>
                                                                     )}
                                                                     {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== "No aplica" && (
-                                                                        <div className="flex items-center gap-1">
+                                                                        <span className="inline-flex items-center gap-1">
                                                                             <FaTruck className="text-xs" />
-                                                                            <span>Arribo: {proyeccion.fecha_arribo}</span>
-                                                                        </div>
+                                                                            Arribo: {proyeccion.fecha_arribo}
+                                                                        </span>
                                                                     )}
                                                                     {proyeccion.fecha_reposicion && proyeccion.fecha_reposicion !== "No aplica" && (
-                                                                        <div className="flex items-center gap-1">
+                                                                        <span className="inline-flex items-center gap-1">
                                                                             <FaBoxes className="text-xs" />
-                                                                            <span>Reposición: {proyeccion.fecha_reposicion}</span>
-                                                                        </div>
-                                                                    )}
-                                                                </div>
-                                                            </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30]">
-                                                                {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium">
-                                                                <div className="flex flex-col items-center">
-                                                                    {formatNumber(stockInicial + pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                                    {pedidosRecibidos > 0 && (
-                                                                        <span className="text-xs text-[#00B0F0] flex items-center gap-1">
-                                                                            <FaTruck className="text-xs" /> {formatNumber(pedidosRecibidos)} en tránsito
+                                                                            Reposición: {proyeccion.fecha_reposicion}
                                                                         </span>
                                                                     )}
                                                                 </div>
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30]">
+                                                            <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
+                                                                {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium whitespace-nowrap">
+                                                                <div className="flex flex-col items-center">
+                                                                    {formatNumber(stockInicial + pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                                    {pedidosRecibidos > 0 && (
+                                                                        <span className="text-xs text-[#00B0F0] whitespace-nowrap">
+                                                                            <FaTruck className="inline mr-1" /> {formatNumber(pedidosRecibidos)} en tránsito
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </td>
+                                                            <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
                                                                 {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30]">
+                                                            <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
                                                                 {pedidosRecibidos > 0 ? (
-                                                                    <div className="flex items-center justify-center gap-1">
+                                                                    <span className="flex items-center justify-center gap-1">
                                                                         <FaTruck className="text-[#00B0F0]" />
                                                                         {formatNumber(pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                                    </div>
+                                                                    </span>
                                                                 ) : '-'}
                                                             </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium">
+                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium whitespace-nowrap">
                                                                 {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
                                                             </td>
-                                                            <td className="text-center">
+                                                            <td className="text-center whitespace-nowrap">
                                                                 {pedidosPendientes.length > 0 ? (
                                                                     <div className="flex flex-col gap-1 items-center">
                                                                         {pedidosPendientes.map(({ mes, unidades }) => (
-                                                                            <div key={mes} className="flex flex-col items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
-                                                                                <div className="flex items-center gap-1">
-                                                                                    <FaTruckLoading className="text-[#0074CF]" />
-                                                                                    {mes}: {formatNumber(unidades)} unid.
-                                                                                </div>
-                                                                            </div>
+                                                                            <span key={mes} className="flex items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
+                                                                                <FaTruckLoading className="text-[#0074CF]" />
+                                                                                {mes}: {formatNumber(unidades)} unid.
+                                                                            </span>
                                                                         ))}
                                                                     </div>
                                                                 ) : '-'}
                                                             </td>
-                                                            <td className="p-3 text-center">
+                                                            <td className="p-3 text-center whitespace-nowrap">
                                                                 {proyeccion.cajas_a_pedir > 0 ? (
-                                                                    <div className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-medium">
+                                                                    <span className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-medium">
                                                                         <FiAlertTriangle className="w-3 h-3" />
                                                                         Pedir {proyeccion.cajas_a_pedir} cajas
-                                                                    </div>
+                                                                    </span>
                                                                 ) : (
-                                                                    <div className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                                                                    <span className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
                                                                         <FiCheckCircle className="w-3 h-3" />
                                                                         Stock suficiente
-                                                                    </div>
+                                                                    </span>
                                                                 )}
                                                             </td>
                                                         </tr>
@@ -3945,7 +3884,7 @@ const Dashboard = () => {
                                                 d="M12 4v16m8-8H4"
                                             />
                                         </svg>
-                                        <span>Generar orden de pedidos</span>
+                                        <span>Generar Orden de Pedidos</span>
                                     </button>
 
                                     <button
@@ -4074,9 +4013,9 @@ const Dashboard = () => {
                                                                     </div>
                                                                 </td>
                                                                 <td className="px-4 py-3 text-center">
-                                                                    {producto.CAJAS_A_PEDIR > 0 ? (
+                                                                    {producto.PROYECCIONES[0]?.cajas_a_pedir > 0 ? (
                                                                         <span className="bg-red-100 text-red-700 px-2 py-1 rounded-full text-xs font-medium shadow-sm">
-                                                                            {producto.CAJAS_A_PEDIR} cajas
+                                                                            {producto.PROYECCIONES[0]?.cajas_a_pedir} cajas
                                                                         </span>
                                                                     ) : (
                                                                         <span className="bg-green-100 text-green-700 px-2 py-1 rounded-full text-xs shadow-sm">

@@ -548,12 +548,16 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                 
                 if diario > 0:
                     tiempo_cob_mes = min(stock_proyectado / diario, max_dias_reposicion)
-                    alerta_stock = bool(stock_despues_consumo < (diario * alarma_stock_days))
-                    fecha_rep_mes = (datetime(year, month, 1) + timedelta(days=max(tiempo_cob_mes - lead_time_days, 0))).strftime('%Y-%m-%d')
+                    alerta_stock = bool(stock_despues_consumo < (diario * (alarma_stock_days + 10)))  # 10 días adicionales de anticipación
+                    fecha_rep_mes = (current_date + timedelta(days=max(tiempo_cob_mes - lead_time_days, 0))).strftime('%Y-%m-%d')
+                    fecha_solicitud_mes = (current_date + timedelta(days=max(tiempo_cob_mes - lead_time_days - 5, 0))).strftime('%Y-%m-%d')
+                    fecha_arribo_mes = (current_date + timedelta(days=max(tiempo_cob_mes - 5, 0))).strftime('%Y-%m-%d')
                 else:
                     tiempo_cob_mes = 0
                     alerta_stock = False
                     fecha_rep_mes = "No aplica"
+                    fecha_solicitud_mes = "No aplica"
+                    fecha_arribo_mes = "No aplica"
                 
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[month]}-{year}",
@@ -569,8 +573,8 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                     "unidades_a_pedir": float(round(unidades_pedir_mes, 2)),
                     "alerta_stock": alerta_stock,
                     "fecha_reposicion": str(fecha_rep_mes),
-                    "fecha_solicitud": str((datetime(year, month, 1) + timedelta(days=max(tiempo_cob_mes - lead_time_days - 5, 0))).strftime('%Y-%m-%d')),  # Fecha sugerida para hacer el pedido
-                    "fecha_arribo": str((datetime(year, month, 1) + timedelta(days=max(tiempo_cob_mes - 5, 0))).strftime('%Y-%m-%d')),  # Fecha estimada de llegada
+                    "fecha_solicitud": str(fecha_solicitud_mes),
+                    "fecha_arribo": str(fecha_arribo_mes),
                     "tiempo_cobertura": float(round(tiempo_cob_mes, 2)),
                     "frecuencia_reposicion": float(round(frecuencia_reposicion, 2)),
                     "unidades_en_transito": float(sum(po["unidades"] for po in pedidos_pendientes.values())),
