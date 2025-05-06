@@ -1152,7 +1152,6 @@ const Dashboard = () => {
 
             const proveedorData = [
                 'PROVEEDOR:',
-                'Coveright España',
                 'Polígono Industrial can Roca C/SNT',
                 'Martí S/N e-08107 Martorelles',
                 'BARCELONA - SPAIN',
@@ -1171,12 +1170,20 @@ const Dashboard = () => {
                 'RUC: 0590028665001'
             ];
 
-            proveedorData.forEach((line, i) => {
-                pdf.text(line, margin.left, currentY + (i * 5));
-            });
-            enviarAData.forEach((line, i) => {
-                pdf.text(line, pageWidth - margin.right, currentY + (i * 5), { align: 'right' });
-            });
+            const lineSpacing = 5;
+            const maxLines = Math.max(proveedorData.length, enviarAData.length);
+            
+            for (let i = 0; i < maxLines; i++) {
+              const y = currentY + i * lineSpacing;
+            
+              if (proveedorData[i]) {
+                pdf.text(proveedorData[i], margin.left, y);
+              }
+            
+              if (enviarAData[i]) {
+                pdf.text(enviarAData[i], pageWidth - margin.right, y, { align: 'right' });
+              }
+            }            
 
             const fecha = new Date();
             const monthsES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
@@ -1189,7 +1196,7 @@ const Dashboard = () => {
             pdf.text('Transporte: Terrestre / Courier / Marítimo', pageWidth - margin.right, currentY + 52, { align: 'right' });
             pdf.text('Duración estimada: 22 días laborables', pageWidth - margin.right, currentY + 57, { align: 'right' });
 
-            currentY += 50;
+            currentY += 42;
 
             // --- Datos del solicitante ---
             const userString = localStorage.getItem('user');
@@ -1216,16 +1223,23 @@ const Dashboard = () => {
                 return;
             }
 
-            const tableData = productsAPedir.map((p, index) => [
-                (index + 1).toString(),
-                p.CODIGO || '-',
-                p.DESCRIPCION || '-',
-                p.UNIDADES_A_PEDIR?.toString() || '-',
-                p.CAJAS_A_PEDIR?.toString() || '-',
-                `$${(p.PRECIO_UNITARIO || 0).toFixed(2)}`,
-                `$${((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)).toFixed(2)}`,
-                new Date().toLocaleDateString('es-ES')
-            ]);
+            const tableData = productsAPedir.map((p, index) => {
+                const proy = p.PROYECCIONES?.[0] || {};
+                const unidades = proy.unidades_a_pedir || 0;
+                const cajas = proy.cajas_a_pedir || 0;
+                const precio = p.PRECIO_UNITARIO || 0;
+              
+                return [
+                  (index + 1).toString(),
+                  p.CODIGO || '-',
+                  p.DESCRIPCION || '-',
+                  unidades.toString(),
+                  cajas.toString(),
+                  `$${precio.toFixed(2)}`,
+                  `$${(precio * unidades).toFixed(2)}`,
+                  new Date().toLocaleDateString('es-ES')
+                ];
+              });              
 
             autoTable(pdf, {
                 startY: currentY,
@@ -1248,7 +1262,13 @@ const Dashboard = () => {
             });
 
             // --- Total general ---
-            const totalOrden = productsAPedir.reduce((sum, p) => sum + ((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)), 0);
+            const totalOrden = productsAPedir.reduce((sum, p) => {
+                const proy = p.PROYECCIONES?.[0] || {};
+                const unidades = proy.unidades_a_pedir || 0;
+                const precio = p.PRECIO_UNITARIO || 0;
+                return sum + (precio * unidades);
+              }, 0);
+              
             currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
             pdf.setFontSize(10);
             pdf.setFont('helvetica', 'bold');
