@@ -39,7 +39,6 @@ parser.add_argument('--dias_transito', type=int, default=0,
                    help='Días de tránsito para los pedidos (laborables)')
 args = parser.parse_args()
 
-
 # Diccionario de meses en español
 SPANISH_MONTHS = {
     1: "ENE", 2: "FEB", 3: "MAR", 4: "ABR", 
@@ -113,7 +112,6 @@ def parsear_fecha_excel(fecha_celda):
 
 def identificar_columnas_consumo(df):
     """Identifica dinámicamente todas las columnas de consumo disponibles en el DataFrame."""
-    # Lista directa para las columnas de consumo
     cols_consumo = [col for col in df.columns if col.startswith("CONS ")]
     
     logger.info(f"Columnas que comienzan con 'CONS ' encontradas: {cols_consumo}")
@@ -125,13 +123,11 @@ def identificar_columnas_consumo(df):
     fechas_consumo = []
     for col in cols_consumo:
         try:
-            # Extraer los componentes de la columna (ejemplo: "CONS ENE 2024")
             partes = col.split()
             if len(partes) >= 3:
-                mes_abr = partes[1]  # "ENE", "FEB", etc.
-                año = int(partes[2])  # "2024", "2025", etc.
+                mes_abr = partes[1]
+                año = int(partes[2])
                 
-                # Convertir abreviatura de mes a número
                 mes_num = None
                 for num, abr in SPANISH_MONTHS.items():
                     if abr.upper() == mes_abr.upper():
@@ -192,7 +188,7 @@ def identificar_columnas_pedidos(df):
 def cargar_datos():
     """Carga y valida el archivo Excel."""
     try:
-        logger.info(f"Cargando archivo: {args.excel}")
+        logger.info(f"Cargando archivo: {os.path.abspath(args.excel)}")
         
         if not os.path.exists(args.excel):
             raise FileNotFoundError(f"Archivo no encontrado: {args.excel}")
@@ -209,19 +205,21 @@ def cargar_datos():
             fecha_inicio_prediccion = datetime(2025, 2, 14)  # Fecha por defecto
             logger.warning(f"No se pudo parsear la fecha de A2, usando fecha por defecto: {fecha_inicio_prediccion}")
         else:
-            logger.info(f"Fecha parseada de A2: {fecha_inicio_prediccion}")  
+            logger.info(f"Fecha parseada de A2: {fecha_inicio_prediccion}")
+        
+        # Resto del código para cargar el dataframe...
+        df_raw = pd.read_excel(args.excel)
+        logger.info(f"Primeras filas del Excel (sin procesar):\n{df_raw.head(2)}")
         
         df = pd.read_excel(args.excel, skiprows=2)
         logger.info("Archivo leído correctamente")
         
         # Limpieza de columnas
         df.columns = [col.strip().replace("\n", " ") for col in df.columns]
-        logger.info(f"Columnas después de limpieza: {list(df.columns)}")
         
         cols_to_drop = [col for col in df.columns if "Unnamed" in col]
         if cols_to_drop:
             df = df.drop(columns=cols_to_drop)
-            logger.info(f"Columnas después de eliminar Unnamed: {list(df.columns)}")
         
         # Identificar columnas de consumo dinámicamente
         cols_consumo, ultima_fecha = identificar_columnas_consumo(df)
@@ -237,11 +235,8 @@ def cargar_datos():
         for col in text_columns:
             if col in df.columns:
                 df[col] = df[col].fillna("Sin información")
-
-        # Identificar columnas de pedidos dinámicamente
-        cols_pedidos = identificar_columnas_pedidos(df)
     
-        return df, cols_consumo, ultima_fecha, cols_pedidos, fecha_inicio_prediccion
+        return df, cols_consumo, ultima_fecha, fecha_inicio_prediccion
 
     except Exception as e:
         logger.error(f"Error en carga de datos: {str(e)}")
