@@ -28,7 +28,8 @@ export const getPredictionByCode = async (req, res) => {
             success: true, 
             data: product,
             metadata: {
-                last_updated: new Date().toISOString()
+                last_updated: new Date().toISOString(),
+                projections_count: product.PROYECCIONES?.length || 0
             }
         });
     } catch (error) {
@@ -55,7 +56,7 @@ export const refreshPredictions = async (req, res) => {
                 archivo: req.file.originalname,
                 productos_procesados: updatedData.length,
                 fecha_generacion: new Date().toISOString(),
-                version_modelo: updatedData[0]?.CONFIGURACION?.VERSION_MODELO || '2.2-dynamic-transit'
+                version_modelo: updatedData[0]?.CONFIGURACION?.VERSION_MODELO || '3.3-dynamic-v2'
             }
         });
     } catch (error) {
@@ -68,7 +69,6 @@ export const applyTransitUnits = async (req, res) => {
         const { code } = req.params;
         const { units, recalculateProjections = true, updateFrequency = true } = req.body;
 
-        // Validaciones básicas
         if (units === undefined || units === null || isNaN(units) || units < 0) {
             return handleHttpError(res, 'INVALID_UNITS', 
                 new Error('Las unidades en tránsito deben ser un número positivo'), 400);
@@ -98,6 +98,78 @@ export const applyTransitUnits = async (req, res) => {
     }
 };
 
+export const applyTransitDays = async (req, res) => {
+    try {
+        const { code } = req.params;
+        const { days, recalculateProjections = true } = req.body;
+
+        if (days === undefined || days === null || isNaN(days) || days < 0) {
+            return handleHttpError(res, 'INVALID_DAYS', 
+                new Error('Los días en tránsito deben ser un número positivo'), 400);
+        }
+
+        const updatedProduct = await pythonService.applyTransitDays(
+            code, 
+            parseInt(days, 10), 
+            { 
+                recalculateProjections
+            }
+        );
+
+        res.json({
+            success: true,
+            message: `Días en tránsito aplicados globalmente al producto ${code}`,
+            data: updatedProduct,
+            metadata: {
+                recalculated_projections: recalculateProjections,
+                transit_days: parseInt(days, 10),
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        handleHttpError(res, 'ERROR_APPLYING_TRANSIT_DAYS', error);
+    }
+};
+
+export const applyTransitDaysToProjection = async (req, res) => {
+    try {
+        const { code, projectionIndex } = req.params;
+        const { days } = req.body;
+
+        // Validaciones básicas
+        if (days === undefined || days === null || isNaN(days) || days < 0) {
+            return handleHttpError(res, 'INVALID_DAYS', 
+                new Error('Los días en tránsito deben ser un número positivo'), 400);
+        }
+
+        const parsedIndex = parseInt(projectionIndex, 10);
+        if (isNaN(parsedIndex) || parsedIndex < 0) {
+            return handleHttpError(res, 'INVALID_PROJECTION_INDEX', 
+                new Error('El índice de proyección debe ser un número positivo'), 400);
+        }
+
+        const updatedProduct = await pythonService.applyTransitDaysToProjection(
+            code,
+            parsedIndex,
+            parseInt(days, 10)
+        );
+
+        res.json({
+            success: true,
+            message: `Días en tránsito aplicados a la proyección ${parsedIndex} del producto ${code}`,
+            data: updatedProduct,
+            metadata: {
+                projection_index: parsedIndex,
+                transit_days: parseInt(days, 10),
+                affected_projections: updatedProduct.PROYECCIONES.length - parsedIndex,
+                timestamp: new Date().toISOString()
+            }
+        });
+    } catch (error) {
+        handleHttpError(res, 'ERROR_APPLYING_TRANSIT_DAYS_TO_PROJECTION', error);
+    }
+};
+
 export const updateProduct = async (req, res) => {
     try {
         const { code } = req.params;
@@ -108,7 +180,7 @@ export const updateProduct = async (req, res) => {
                 new Error('Debe proporcionar datos válidos para actualizar'), 400);
         }
 
-        // Validar que no se intenten actualizar campos protegidos
+        // Validar campos protegidos
         const protectedFields = ['CODIGO', 'STOCK_FISICO', 'CONFIGURACION'];
         const invalidUpdates = Object.keys(updates).filter(field => protectedFields.includes(field));
         

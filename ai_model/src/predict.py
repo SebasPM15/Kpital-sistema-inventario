@@ -35,6 +35,8 @@ parser.add_argument('--model', type=str,
                    help='Ruta al modelo Prophet comprimido')
 parser.add_argument('--transito', type=float, default=0.0,
                    help='Unidades en tránsito disponibles para asignación')
+parser.add_argument('--dias_transito', type=int, default=0,
+                   help='Días de tránsito para los pedidos (laborables)')
 args = parser.parse_args()
 
 
@@ -431,12 +433,26 @@ def calcular_consumo_mensual(row, month, year, dias_consumo_mensual, prophet_pre
         logger.error(f"Error en calcular_consumo_mensual: {str(e)}")
         return float(round(row["DIARIO"] * dias_consumo_mensual, 2))
 
-def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_inicio_prediccion, prophet_predictions=None):
+def sumar_dias_laborables(fecha_inicio, dias):
+    """Suma días laborables (lunes a viernes) a una fecha inicial."""
+    fecha_actual = fecha_inicio
+    dias_sumados = 0
+    
+    while dias_sumados < dias:
+        fecha_actual += timedelta(days=1)
+        # Considerar solo días laborables (lunes a viernes)
+        if fecha_actual.weekday() < 5:  # 0 = lunes, 4 = viernes
+            dias_sumados += 1
+            
+    return fecha_actual
+
+def calcular_predicciones(df, cols_consumo, ultima_fecha, fecha_inicio_prediccion, dias_transito, prophet_predictions=None):
     """Calcula las predicciones con consumos mensuales dinámicos."""
     try:
         logger.info("Calculando predicciones con consumos dinámicos...")
         logger.info(f"Fecha de inicio para predicciones: {fecha_inicio_prediccion}")
-
+        logger.info(f"Días de tránsito: {dias_transito}")
+        
         # Convertir columnas numéricas y manejar valores nulos
         numeric_cols = [col for col in df.columns[2:] if col not in ["CODIGO", "DESCRIPCION"]]
         df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors='coerce').fillna(0)
@@ -462,12 +478,18 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
         
         # Generar predicciones mensuales
         resultados_completos = []
-        po_en_transito = "-2573 AIR"
+
+        # Calcular fecha de arribo (solo días laborables)
+        fecha_arribo = fecha_inicio_prediccion
+        if dias_transito > 0:
+            fecha_arribo = sumar_dias_laborables(fecha_inicio_prediccion, dias_transito)
+            logger.info(f"Fecha de arribo calculada: {fecha_arribo.strftime('%Y-%m-%d')}")
         
         # Fechas clave ajustadas
         fecha_consumo_inicio = fecha_inicio_prediccion
-        fecha_consumo_fin = fecha_consumo_inicio + timedelta(days=5)
-        fecha_inicio_prediccion = fecha_consumo_fin
+        fecha_consumo_fin = sumar_dias_laborables(fecha_consumo_inicio, dias_transito) if dias_transito > 0 else fecha_consumo_inicio       
+        
+        logger.info(f"Período de consumo inicial: {fecha_consumo_inicio.strftime('%Y-%m-%d')} a {fecha_consumo_fin.strftime('%Y-%m-%d')} ({dias_transito} días laborables)")
         
         for _, row in df.iterrows():
             if not isinstance(row["CODIGO"], str) or row["CODIGO"] == "Sin información":
@@ -478,26 +500,18 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
             stock_inicial = row["STOCK  TOTAL"]
             consumo_diario = row["DIARIO"]
             punto_reorden = row[f"PUNTO DE REORDEN ({dias_punto_reorden} días)"]
-            
-            # 2. Procesar PO en tránsito
-            if po_en_transito in cols_pedidos and "A_PEDIR" in cols_pedidos[po_en_transito]:
-                col_name = cols_pedidos[po_en_transito]["A_PEDIR"]
-                try:
-                    unidades_po = float(row[col_name]) if pd.notna(row[col_name]) and str(row[col_name]).strip() != '' else 0.0
-                except (ValueError, TypeError):
-                    unidades_po = 0.0
-                    
-                if unidades_po > 0:
-                    pedidos_pendientes[po_en_transito] = {
-                        "unidades": unidades_po,
-                        "columna": col_name
-                    }
+            stock_seguridad = row["SS"]  # Fijo
+            stock_minimo = row["STOCK MINIMO (Prom + SS)"]  # Fijo
             
             # 3. Cálculos iniciales de stock
-            consumo_proyectado_arribo = consumo_diario * 5
-            stock_actual = stock_inicial + sum(po["unidades"] for po in pedidos_pendientes.values()) - consumo_proyectado_arribo
-            stock_total_disponible = stock_actual + sum(po["unidades"] for po in pedidos_pendientes.values())
-            deficit = max(punto_reorden - stock_total_disponible, 0)
+            consumo_proyectado_arribo  = 0
+            stock_antes_arribo = stock_inicial
+            if dias_transito > 0:
+                consumo_proyectado_arribo = consumo_diario * dias_transito
+            stock_antes_arribo = max(stock_inicial - consumo_proyectado_arribo, 0)
+            
+            stock_actual = stock_antes_arribo
+            deficit = max(punto_reorden - stock_actual, 0)
             
             # 4. Calcular pedidos necesarios
             cajas_pedir = int(np.ceil(deficit / row["UNID/CAJA"])) if row["UNID/CAJA"] > 0 else 0
@@ -505,21 +519,23 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
             
             # 5. Configuración temporal
             if row["DIARIO"] > 0:
-                tiempo_cobertura = min(stock_total_disponible / row["DIARIO"], max_dias_reposicion)
+                tiempo_cobertura = min(stock_actual / row["DIARIO"], max_dias_reposicion)
                 frecuencia_reposicion = min(punto_reorden / row["DIARIO"], max_dias_reposicion)
                 dias_hasta_reposicion = max(frecuencia_reposicion - lead_time_days, 0)
                 fecha_reposicion = (fecha_consumo_inicio + timedelta(days=dias_hasta_reposicion)).strftime('%Y-%m-%d')
+                fecha_arribo_pedido = (fecha_consumo_inicio + timedelta(days=dias_transito)).strftime('%Y-%m-%d') if dias_transito > 0 else "No aplica"
             else:
                 tiempo_cobertura = 0
                 frecuencia_reposicion = 0
                 fecha_reposicion = "No aplica"
+                fecha_arribo_pedido = "No aplica"
             
             # 6. Generar proyecciones mensuales con consumos dinámicos
             proyecciones = []
             stock_proyectado = stock_actual
             
             for mes in range(6):
-                current_date = fecha_inicio_prediccion + relativedelta(months=mes)
+                current_date = fecha_arribo + relativedelta(months=mes)
                 year = current_date.year
                 month = current_date.month
                 
@@ -534,17 +550,23 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                 )
                 
                 # Resto de cálculos mensuales
-                diario = consumo / dias_consumo_mensual
-                ss_mes = diario * 19
-                stock_minimo_mes = consumo + ss_mes
-                punto_reorden_mes = diario * dias_punto_reorden
+                diario = consumo_diario
+                ss_mes = stock_seguridad
+                stock_minimo_mes = stock_minimo
+                punto_reorden_mes = punto_reorden
                 
                 stock_despues_consumo = max(stock_proyectado - consumo, 0)
-                deficit_mes = max(punto_reorden_mes - stock_despues_consumo, 0)
+                
+                # Nueva lógica para optimizar unidades a pedir
+                stock_objetivo = (stock_seguridad + stock_minimo) / 2
+                deficit_mes = max(stock_objetivo - stock_despues_consumo, 0)
+                # Ajuste para evitar quiebres de stock
+                if stock_despues_consumo < stock_seguridad:
+                    deficit_mes = max(stock_seguridad - stock_despues_consumo, deficit_mes)
                 
                 cajas_pedir_mes = int(np.ceil(deficit_mes / row["UNID/CAJA"])) if deficit_mes > 0 and row["UNID/CAJA"] > 0 else 0
                 unidades_pedir_mes = cajas_pedir_mes * row["UNID/CAJA"]
-                stock_proyectado = stock_despues_consumo + unidades_pedir_mes
+                stock_proyectado = stock_despues_consumo + unidades_pedir_mes           
                 
                 if diario > 0:
                     tiempo_cob_mes = min(stock_proyectado / diario, max_dias_reposicion)
@@ -561,6 +583,7 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                 
                 info_mes = {
                     "mes": f"{SPANISH_MONTHS[month]}-{year}",
+                    "dias_transito": dias_transito,
                     "stock_inicial": float(round(stock_actual, 2)),
                     "stock_proyectado": float(round(stock_despues_consumo, 2)),
                     "consumo_mensual": float(round(consumo, 2)),
@@ -577,7 +600,7 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                     "fecha_arribo": str(fecha_arribo_mes),
                     "tiempo_cobertura": float(round(tiempo_cob_mes, 2)),
                     "frecuencia_reposicion": float(round(frecuencia_reposicion, 2)),
-                    "unidades_en_transito": float(sum(po["unidades"] for po in pedidos_pendientes.values())),
+                    "unidades_en_transito": 0.0,
                     "pedidos_pendientes": pedidos_pendientes,
                     "pedidos_recibidos": 0,  # Se actualizará en el siguiente mes
                     "accion_requerida": f"Pedir {cajas_pedir_mes} cajas" if cajas_pedir_mes > 0 else "Stock suficiente",
@@ -594,8 +617,9 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
             producto_info = {
                 "CODIGO": str(row["CODIGO"]),
                 "DESCRIPCION": str(row["DESCRIPCION"]),
+                "FECHA_INICIO": str(fecha_inicio_prediccion.strftime('%Y-%m-%d')),
                 "UNIDADES_POR_CAJA": float(row["UNID/CAJA"]),
-                "STOCK_FISICO": float(stock_inicial - consumo_proyectado_arribo),
+                "STOCK_FISICO": float(stock_antes_arribo),
                 "UNIDADES_TRANSITO": float(sum(po["unidades"] for po in pedidos_pendientes.values())),
                 "STOCK_TOTAL": float(stock_actual),
                 "CONSUMO_PROMEDIO": float(row["PROM CONSU"]),
@@ -625,6 +649,7 @@ def calcular_predicciones(df, cols_consumo, ultima_fecha, cols_pedidos, fecha_in
                     "DIAS_ALARMA_STOCK": alarma_stock_days,
                     "DIAS_MAX_REPOSICION": max_dias_reposicion,
                     "DIAS_LABORALES_MES": 22,
+                    "DIAS_TRANSITO": dias_transito,  # Nuevo campo para días de tránsito
                     "VERSION_MODELO": "3.3-dynamic-v2"
                 },
                 "PEDIDOS_PENDIENTES": pedidos_pendientes
@@ -719,7 +744,7 @@ def main():
         logger.info(f"Directorio de modelos: {MODELS_DIR}")
         
         # Cargar datos
-        df, cols_consumo, ultima_fecha, cols_pedidos, fecha_inicio_prediccion = cargar_datos()
+        df, cols_consumo, ultima_fecha, fecha_inicio_prediccion = cargar_datos()
                 
         # Cargar modelo Prophet
         prophet_model = cargar_modelo_prophet()
@@ -732,8 +757,8 @@ def main():
         
         # Calcular predicciones
         _, resultados_completos = calcular_predicciones(
-            df, cols_consumo, ultima_fecha, cols_pedidos, 
-            fecha_inicio_prediccion, prophet_predictions
+            df, cols_consumo, ultima_fecha, 
+            fecha_inicio_prediccion, args.dias_transito, prophet_predictions
         )
 
         # Guardar resultados

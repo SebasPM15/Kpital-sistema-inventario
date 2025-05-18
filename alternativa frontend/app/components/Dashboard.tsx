@@ -57,6 +57,9 @@ const API_URL = 'https://kpital-sistema-inventario-backend-ia.onrender.com/api';
 interface Proyeccion {
     mes: string;
     stock_inicial: number;
+    dias_transito: number;
+    fecha_inicio_proyeccion: string;
+    fecha_fin: string;
     stock_proyectado: number;
     consumo_mensual: number;
     consumo_diario: number;
@@ -71,12 +74,13 @@ interface Proyeccion {
     fecha_solicitud: string;
     fecha_arribo: string;
     tiempo_cobertura: number;
-    frecuencia_reposicion: number;
+    frecuencia_reposicion?: number; // Marcado como opcional, no usado en proyecciones
     unidades_en_transito: number;
     pedidos_pendientes: Record<string, number>;
     pedidos_recibidos: number;
     accion_requerida: string;
-    stock_total?: number; // Nuevo campo: stock inicial + unidades en tránsito/recibidas
+    stock_total?: number;
+    consumo_inicial_transito?: number; // Agregado como opcional
 }
 
 interface ProductoData {
@@ -106,8 +110,11 @@ interface ProductoData {
 
     // Tiempos
     FECHA_REPOSICION: string;
+    FECHA_ARRIBO_PEDIDO: string; // Nuevo: Fecha estimada de arribo
     DIAS_COBERTURA: number;
     FRECUENCIA_REPOSICION: number;
+    DIAS_TRANSITO_ACTUAL: number; // Nuevo: Días de tránsito aplicados
+    FECHA_INICIO: string;
 
     // Alertas
     alerta_stock: boolean;
@@ -131,6 +138,7 @@ interface ConfiguracionInventario {
     LEAD_TIME_REPOSICION: number;
     DIAS_MAX_REPOSICION: number;
     DIAS_LABORALES_MES: number;
+    DIAS_TRANSITO: number; // Nuevo: Configuración días de tránsito
     VERSION_MODELO: string;
     METODO_CALCULO?: string; // Nuevo campo opcional
 }
@@ -1172,18 +1180,18 @@ const Dashboard = () => {
 
             const lineSpacing = 5;
             const maxLines = Math.max(proveedorData.length, enviarAData.length);
-            
+
             for (let i = 0; i < maxLines; i++) {
-              const y = currentY + i * lineSpacing;
-            
-              if (proveedorData[i]) {
-                pdf.text(proveedorData[i], margin.left, y);
-              }
-            
-              if (enviarAData[i]) {
-                pdf.text(enviarAData[i], pageWidth - margin.right, y, { align: 'right' });
-              }
-            }            
+                const y = currentY + i * lineSpacing;
+
+                if (proveedorData[i]) {
+                    pdf.text(proveedorData[i], margin.left, y);
+                }
+
+                if (enviarAData[i]) {
+                    pdf.text(enviarAData[i], pageWidth - margin.right, y, { align: 'right' });
+                }
+            }
 
             const fecha = new Date();
             const monthsES = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
@@ -1223,23 +1231,16 @@ const Dashboard = () => {
                 return;
             }
 
-            const tableData = productsAPedir.map((p, index) => {
-                const proy = p.PROYECCIONES?.[0] || {};
-                const unidades = proy.unidades_a_pedir || 0;
-                const cajas = proy.cajas_a_pedir || 0;
-                const precio = p.PRECIO_UNITARIO || 0;
-              
-                return [
-                  (index + 1).toString(),
-                  p.CODIGO || '-',
-                  p.DESCRIPCION || '-',
-                  unidades.toString(),
-                  cajas.toString(),
-                  `$${precio.toFixed(2)}`,
-                  `$${(precio * unidades).toFixed(2)}`,
-                  new Date().toLocaleDateString('es-ES')
-                ];
-              });              
+            const tableData = productsAPedir.map((p, index) => [
+                (index + 1).toString(),
+                p.CODIGO || '-',
+                p.DESCRIPCION || '-',
+                p.UNIDADES_A_PEDIR?.toString() || '-',
+                p.CAJAS_A_PEDIR?.toString() || '-',
+                `$${(p.PRECIO_UNITARIO || 0).toFixed(2)}`,
+                `$${((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)).toFixed(2)}`,
+                new Date().toLocaleDateString('es-ES')
+            ]);
 
             autoTable(pdf, {
                 startY: currentY,
@@ -1262,13 +1263,7 @@ const Dashboard = () => {
             });
 
             // --- Total general ---
-            const totalOrden = productsAPedir.reduce((sum, p) => {
-                const proy = p.PROYECCIONES?.[0] || {};
-                const unidades = proy.unidades_a_pedir || 0;
-                const precio = p.PRECIO_UNITARIO || 0;
-                return sum + (precio * unidades);
-              }, 0);
-              
+            const totalOrden = productsAPedir.reduce((sum, p) => sum + ((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)), 0);
             currentY = (pdf.lastAutoTable?.finalY || currentY) + 10;
             pdf.setFontSize(10);
             pdf.setFont('helvetica', 'bold');
@@ -2328,6 +2323,400 @@ const Dashboard = () => {
         );
     };
 
+    const TransitDaysControl = ({ codigo }: { codigo: string }) => {
+        const [transitDays, setTransitDays] = useState<number | ''>('');
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const [success, setSuccess] = useState(false);
+        const inputRef = useRef<HTMLInputElement>(null);
+
+        const handleApplyTransitDays = async () => {
+            if (transitDays === '' || Number(transitDays) <= 0) {
+                setError('Debe ingresar un número válido mayor a 0');
+                inputRef.current?.focus();
+                return;
+            }
+
+            try {
+                setLoading(true);
+                setError(null);
+                setSuccess(false);
+
+                const response = await axios.post<{
+                    success: boolean;
+                    data: ProductoData;
+                    message?: string;
+                }>(`${API_URL}/predictions/${codigo}/transit/days`, {
+                    transitDays: Number(transitDays),
+                    recalculateProjections: true
+                });
+
+                if (response.data.success) {
+                    setSuccess(true);
+                    setTransitDays('');
+
+                    // Actualizar el estado global con los nuevos datos
+                    const updatedData = response.data.data;
+                    setSelectedPrediction({
+                        ...selectedPrediction!,
+                        data: updatedData
+                    });
+
+                    setAllPredictions((prev: any[]) => prev.map(item =>
+                        item.CODIGO === codigo ? updatedData : item
+                    ));
+                } else {
+                    throw new Error(response.data.message || 'Error al aplicar días de tránsito');
+                }
+            } catch (err: any) {
+                console.error('Error al aplicar días de tránsito:', err);
+                setError(err.response?.data?.message || err.message || 'Error al aplicar días de tránsito');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const handleKeyDown = (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                handleApplyTransitDays();
+            }
+        };
+
+        // Calcular información derivada
+        const consumoProyectado = selectedPrediction?.data.CONSUMO_DIARIO
+            ? selectedPrediction.data.CONSUMO_DIARIO * (Number(transitDays) || 0)
+            : 0;
+
+        const fechaArribo = transitDays && selectedPrediction?.data.FECHA_INICIO
+            ? new Date(new Date(selectedPrediction.data.FECHA_INICIO).setDate(
+                new Date(selectedPrediction.data.FECHA_INICIO).getDate() + Number(transitDays)
+            )).toLocaleDateString()
+            : 'No aplica';
+
+        return (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+                <h4 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                    <FaCalendarAlt className="text-blue-600" />
+                    Configuración de Días de Tránsito
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                        <div className="text-xs text-blue-600 mb-1">Días de Tránsito Actuales</div>
+                        <div className="text-xl font-bold text-blue-800">
+                            {selectedPrediction?.data.CONFIGURACION.DIAS_TRANSITO || 0} días
+                        </div>
+                        <div className="text-xs text-blue-500 mt-1">
+                            Configuración actual
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                        <label htmlFor="transit-days-input" className="block text-xs text-blue-600 mb-1">
+                            Establecer Días de Tránsito
+                        </label>
+                        <input
+                            id="transit-days-input"
+                            ref={inputRef}
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={transitDays}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setTransitDays(value === '' ? '' : Number(value));
+                                setError(null);
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                            placeholder="Ej: 7 días"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    <div className="flex items-end">
+                        <button
+                            onClick={handleApplyTransitDays}
+                            disabled={loading}
+                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors"
+                        >
+                            {loading ? (
+                                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                                <>
+                                    <FaCheck className="w-4 h-4" />
+                                    Aplicar
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {error && (
+                    <div className="mt-2 text-red-500 text-sm flex items-center gap-1">
+                        <FaExclamationTriangle />
+                        {error}
+                    </div>
+                )}
+
+                {success && (
+                    <div className="mt-2 text-green-600 text-sm flex items-center gap-1">
+                        <FiCheckCircle />
+                        Días de tránsito aplicados correctamente
+                    </div>
+                )}
+
+                {transitDays && Number(transitDays) > 0 && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                            <div className="text-xs text-blue-600 mb-1">Fecha estimada de arribo</div>
+                            <div className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                                <FaCalendarAlt />
+                                {fechaArribo}
+                            </div>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                            <div className="text-xs text-blue-600 mb-1">Consumo proyectado durante tránsito</div>
+                            <div className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                                <FaChartLine />
+                                {formatNumber(consumoProyectado)} unidades
+                                <span className="text-xs text-blue-500 ml-auto">
+                                    ({selectedPrediction?.data.CONSUMO_DIARIO} uds/día)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="mt-3 text-xs text-blue-600">
+                    <FaInfoCircle className="inline mr-1" />
+                    Los días de tránsito afectarán las proyecciones de stock y fechas de reposición
+                </div>
+            </div>
+        );
+    };
+
+    const TransitControl = ({ codigo }: { codigo: string }) => {
+        const [transitUnits, setTransitUnits] = useState<number | ''>('');
+        const [transitDays, setTransitDays] = useState<number | ''>('');
+        const [loading, setLoading] = useState(false);
+        const [error, setError] = useState<string | null>(null);
+        const [success, setSuccess] = useState(false);
+        const unitsInputRef = useRef<HTMLInputElement>(null);
+        const daysInputRef = useRef<HTMLInputElement>(null);
+
+        const handleApplyTransit = async () => {
+            // Validar ambos campos
+            if (transitUnits === '' || Number(transitUnits) <= 0) {
+                setError('Debe ingresar un número válido de unidades mayor a 0');
+                unitsInputRef.current?.focus();
+                return;
+            }
+            if (transitDays === '' || Number(transitDays) <= 0) {
+                setError('Debe ingresar un número válido de días mayor a 0');
+                daysInputRef.current?.focus();
+                return;
+            }
+
+            try {
+                setLoading(true);
+                setError(null);
+                setSuccess(false);
+
+                // 1. Enviar unidades en tránsito
+                const unitsResponse = await axios.post(
+                    `${API_URL}/predictions/${codigo}/transit`,
+                    {
+                        units: Number(transitUnits),
+                        recalculateProjections: true,
+                        updateFrequency: true
+                    }
+                );
+
+                if (!unitsResponse.data.success) {
+                    throw new Error(unitsResponse.data.error || 'Error al agregar unidades en tránsito');
+                }
+
+                // 2. Enviar días de tránsito
+                const daysResponse = await axios.post<{
+                    success: boolean;
+                    data: ProductoData;
+                    message?: string;
+                }>(`${API_URL}/predictions/${codigo}/transit/days`, {
+                    transitDays: Number(transitDays),
+                    recalculateProjections: true
+                });
+
+                if (!daysResponse.data.success) {
+                    throw new Error(daysResponse.data.message || 'Error al aplicar días de tránsito');
+                }
+
+                // Actualizar estado global
+                const updatedResponse = await axios.get<PredictionData>(`${API_URL}/predictions/${codigo}`);
+                setSelectedPrediction(updatedResponse.data);
+
+                setAllPredictions(prev => prev.map(item =>
+                    item.CODIGO === codigo ? updatedResponse.data.data : item
+                ));
+
+                // Éxito
+                setSuccess(true);
+                setTransitUnits('');
+                setTransitDays('');
+            } catch (err: any) {
+                console.error('Error:', err);
+                setError(err.response?.data?.error || err.message || 'Error al aplicar configuración de tránsito');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const handleKeyDown = (e: React.KeyboardEvent) => {
+            if (e.key === 'Enter') {
+                handleApplyTransit();
+            }
+        };
+
+        // Calcular información derivada
+        const consumoProyectado = selectedPrediction?.data.CONSUMO_DIARIO
+            ? selectedPrediction.data.CONSUMO_DIARIO * (Number(transitDays) || 0)
+            : 0;
+
+        const fechaArribo = transitDays && selectedPrediction?.data.FECHA_INICIO
+            ? new Date(new Date(selectedPrediction.data.FECHA_INICIO).setDate(
+                new Date(selectedPrediction.data.FECHA_INICIO).getDate() + Number(transitDays)
+            )).toLocaleDateString()
+            : 'No aplica';
+
+        return (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 shadow-sm">
+                <h4 className="text-sm font-semibold text-blue-700 mb-3 flex items-center gap-2">
+                    <FaTruck className="text-blue-600" />
+                    Configuración de Tránsito
+                </h4>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    {/* Valores actuales */}
+                    <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                        <div className="text-xs text-blue-600 mb-1">Configuración Actual</div>
+                        <div className="text-sm font-bold text-blue-800">
+                            <div>Unidades: {selectedPrediction?.data.UNIDADES_TRANSITO || 0}</div>
+                            <div>Días: {selectedPrediction?.data.CONFIGURACION.DIAS_TRANSITO || 0}</div>
+                        </div>
+                    </div>
+
+                    {/* Input para unidades */}
+                    <div className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                        <label htmlFor="transit-units-input" className="block text-xs text-blue-600 mb-1">
+                            Unidades en Tránsito
+                        </label>
+                        <input
+                            id="transit-units-input"
+                            ref={unitsInputRef}
+                            type="number"
+                            min="1"
+                            value={transitUnits}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setTransitUnits(value === '' ? '' : Number(value));
+                                setError(null);
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                            placeholder="Cantidad de unidades"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {/* Input para días */}
+                    <div className="bg-white p-3 rounded-lg border border-blue-100 shadow-sm">
+                        <label htmlFor="transit-days-input" className="block text-xs text-blue-600 mb-1">
+                            Días de Tránsito
+                        </label>
+                        <input
+                            id="transit-days-input"
+                            ref={daysInputRef}
+                            type="number"
+                            min="1"
+                            max="30"
+                            value={transitDays}
+                            onChange={(e) => {
+                                const value = e.target.value;
+                                setTransitDays(value === '' ? '' : Number(value));
+                                setError(null);
+                            }}
+                            onKeyDown={handleKeyDown}
+                            className="w-full px-3 py-2 border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-gray-900"
+                            placeholder="Ej: 7 días"
+                            disabled={loading}
+                        />
+                    </div>
+
+                    {/* Botón unificado */}
+                    <div className="flex items-end">
+                        <button
+                            onClick={handleApplyTransit}
+                            disabled={loading}
+                            className="w-full px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg flex items-center justify-center gap-2 shadow-sm transition-colors"
+                        >
+                            {loading ? (
+                                <div className="animate-spin h-5 w-5 border-2 border-white border-t-transparent rounded-full" />
+                            ) : (
+                                <>
+                                    <FaCheck className="w-4 h-4" />
+                                    Aplicar
+                                </>
+                            )}
+                        </button>
+                    </div>
+                </div>
+
+                {/* Mensajes de error y éxito */}
+                {error && (
+                    <div className="mt-2 text-red-500 text-sm flex items-center gap-1">
+                        <FaExclamationTriangle />
+                        {error}
+                    </div>
+                )}
+
+                {success && (
+                    <div className="mt-2 text-green-600 text-sm flex items-center gap-1">
+                        <FiCheckCircle />
+                        Configuración de tránsito aplicada correctamente
+                    </div>
+                )}
+
+                {/* Información derivada */}
+                {transitDays && Number(transitDays) > 0 && (
+                    <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
+                        <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                            <div className="text-xs text-blue-600 mb-1">Fecha estimada de arribo</div>
+                            <div className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                                <FaCalendarAlt />
+                                {fechaArribo}
+                            </div>
+                        </div>
+                        <div className="bg-white p-3 rounded border border-blue-100 shadow-sm">
+                            <div className="text-xs text-blue-600 mb-1">Consumo proyectado durante tránsito</div>
+                            <div className="text-sm font-medium text-blue-800 flex items-center gap-2">
+                                <FaChartLine />
+                                {formatNumber(consumoProyectado)} unidades
+                                <span className="text-xs text-blue-500 ml-auto">
+                                    ({selectedPrediction?.data.CONSUMO_DIARIO} uds/día)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                <div className="mt-3 text-xs text-blue-600">
+                    <FaInfoCircle className="inline mr-1" />
+                    La configuración de tránsito afecta las proyecciones de stock y fechas de reposición
+                </div>
+            </div>
+        );
+    };
+
     const Sidebar = () => {
         const [user, setUser] = useState<any>(null);
         const [activeComponent, setActiveComponent] = useState<string>('dashboard');
@@ -2481,13 +2870,153 @@ const Dashboard = () => {
         if (!selectedPrediction) return null;
 
         const producto = selectedPrediction.data;
-        const stockActual = producto.STOCK_TOTAL;
+        const stockActual = producto.STOCK_FISICO;
         const stockSeguridad = producto.STOCK_SEGURIDAD;
         const puntoReorden = producto.PUNTO_REORDEN;
         const status = getStockStatus(stockActual, stockSeguridad, puntoReorden);
         const diasCobertura = calculateDaysOfCoverage(stockActual, producto.CONSUMO_DIARIO);
         const consumoPromedio = producto.CONSUMO_PROMEDIO;
         const porcentajeSS = Math.round(stockSeguridad / consumoPromedio * 100);
+
+        // Estado para manejar los días de tránsito por proyección
+        const [transitDaysInputs, setTransitDaysInputs] = useState<{ [key: number]: number }>({});
+        const [isApplyingDays, setIsApplyingDays] = useState<number | null>(null);
+        const [projectionsWithDates, setProjectionsWithDates] = useState<Proyeccion[]>([]);
+        const [isRefreshing, setIsRefreshing] = useState(false);
+        const [notification, setNotification] = useState<string | null>(null);
+
+        useEffect(() => {
+            if (selectedPrediction?.data?.PROYECCIONES) {
+                const calculateProjectionDates = () => {
+                    try {
+                        const projections = selectedPrediction.data.PROYECCIONES.map((proj, index) => {
+                            let startDate = new Date(proj.fecha_inicio_proyeccion || selectedPrediction.data.FECHA_INICIO || Date.now());
+                            if (isNaN(startDate.getTime())) {
+                                console.warn(`Invalid start date for projection ${index}, using current date`);
+                                startDate = new Date();
+                            }
+
+                            let endDate = proj.fecha_fin ? new Date(proj.fecha_fin) : addBusinessDays(startDate, proj.dias_transito || producto.CONFIGURACION.DIAS_LABORALES_MES);
+                            if (isNaN(endDate.getTime())) {
+                                console.warn(`Invalid end date for projection ${index}, using current date`);
+                                endDate = new Date();
+                            }
+
+                            return {
+                                ...proj,
+                                fecha_inicio_proyeccion: startDate.toISOString().split('T')[0],
+                                fecha_fin: endDate.toISOString().split('T')[0]
+                            };
+                        });
+
+                        setProjectionsWithDates(projections);
+                    } catch (error) {
+                        console.error('Error calculating projection dates:', error);
+                        setProjectionsWithDates(selectedPrediction.data.PROYECCIONES);
+                    }
+                };
+
+                calculateProjectionDates();
+            }
+        }, [selectedPrediction]);
+
+        const addBusinessDays = (startDate: Date, days: number) => {
+            let date = new Date(startDate);
+            if (isNaN(date.getTime())) {
+                console.warn('Invalid date in addBusinessDays, using current date');
+                date = new Date();
+            }
+
+            let addedDays = 0;
+            while (addedDays < days) {
+                date.setDate(date.getDate() + 1);
+                if (date.getDay() !== 0 && date.getDay() !== 6) {
+                    addedDays++;
+                }
+            }
+
+            return date;
+        };
+
+        const handleApplyTransitDays = async (projectionIndex: number) => {
+            const days = transitDaysInputs[projectionIndex];
+            if (!days || days <= 0 || !Number.isInteger(days)) {
+                setNotification('Por favor ingrese un número entero positivo de días');
+                setTimeout(() => setNotification(null), 3000);
+                return;
+            }
+
+            setIsApplyingDays(projectionIndex);
+            setIsRefreshing(true);
+            try {
+                const response = await fetch(`${API_URL}/predictions/${producto.CODIGO}/projections/${projectionIndex}/transit-days`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ days })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.message || 'Error al aplicar días de tránsito');
+                }
+
+                const updatedProduct = await response.json();
+                if (!updatedProduct || !Array.isArray(updatedProduct.PROYECCIONES)) {
+                    console.error('Invalid PATCH response:', updatedProduct);
+                    setNotification('Error: Respuesta inválida del servidor');
+                    setTimeout(() => setNotification(null), 3000);
+                    return;
+                }
+
+                // Actualizar proyecciones localmente
+                const updatedProjections = updatedProduct.PROYECCIONES.map((proj: Proyeccion, index: number) => {
+                    let startDate = new Date(proj.fecha_inicio_proyeccion || updatedProduct.FECHA_INICIO || Date.now());
+                    if (isNaN(startDate.getTime())) {
+                        startDate = new Date();
+                    }
+
+                    let endDate = proj.fecha_fin ? new Date(proj.fecha_fin) : addBusinessDays(startDate, proj.dias_transito || producto.CONFIGURACION.DIAS_LABORALES_MES);
+                    if (isNaN(endDate.getTime())) {
+                        endDate = new Date();
+                    }
+
+                    return {
+                        ...proj,
+                        fecha_inicio_proyeccion: startDate.toISOString().split('T')[0],
+                        fecha_fin: endDate.toISOString().split('T')[0]
+                    };
+                });
+
+                setProjectionsWithDates(updatedProjections);
+                setTransitDaysInputs(prev => {
+                    const newInputs = { ...prev };
+                    delete newInputs[projectionIndex]; // Limpiar input después de aplicar
+                    return newInputs;
+                });
+                setNotification(`Días de tránsito (${days}) aplicados correctamente`);
+                setTimeout(() => setNotification(null), 3000);
+            } catch (error) {
+                console.error('Error applying transit days:', error);
+                setNotification('Error al aplicar días de tránsito');
+                setTimeout(() => setNotification(null), 3000);
+            } finally {
+                setIsApplyingDays(null);
+                setIsRefreshing(false);
+            }
+        };
+
+        const handleClose = async () => {
+            setIsRefreshing(true);
+            try {
+                await refreshPredictions();
+            } finally {
+                setIsRefreshing(false);
+                onClose();
+            }
+        };
 
         const statusClass = {
             danger: 'bg-red-50 border-red-200',
@@ -2500,11 +3029,6 @@ const Dashboard = () => {
             warning: 'text-amber-700',
             safe: 'text-emerald-700'
         }[status];
-
-        const handleClose = async () => {
-            await refreshPredictions();
-            onClose();
-        };
 
         const variationData = generateVariationChartData(producto.HISTORICO_CONSUMOS || {});
 
@@ -2585,7 +3109,7 @@ const Dashboard = () => {
                                     <div>
                                         <div className="text-xs text-slate-600">Stock Total</div>
                                         <div className="text-lg font-bold text-slate-800">
-                                            {formatNumber(stockActual)} unidades
+                                            {formatNumber(producto.STOCK_FISICO)} unidades
                                         </div>
                                         <div className="text-xs text-slate-500 flex flex-col">
                                             <span>Físico: {formatNumber(producto.STOCK_FISICO)}</span>
@@ -2640,8 +3164,6 @@ const Dashboard = () => {
                                     return response.json();
                                 }}
                             />
-
-                            <TransitUnitsControl codigo={producto.CODIGO} />
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 {/* Contenedor de Umbrales Clave - Diseño Profesional */}
@@ -2720,7 +3242,7 @@ const Dashboard = () => {
                                         <FaTruck className="text-emerald-700" />
                                         <h4 className="text-sm font-semibold">Pedido Sugerido</h4>
                                         <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
-                                            {producto.PROYECCIONES[0]?.mes || 'Primer mes'}
+                                            {producto.PROYECCIONES[0]?.fecha_inicio_proyeccion || 'Primer mes'}
                                         </span>
                                     </div>
                                     <div className="space-y-4">
@@ -2822,8 +3344,7 @@ const Dashboard = () => {
 
                                         {/* Nota de Proyección */}
                                         <div className="text-xs text-gray-500 italic pt-2 border-t border-emerald-100">
-                                            Basado en proyección de {producto.PROYECCIONES[0]?.mes || 'próximo mes'}.
-                                            Stock actual: {formatNumber(producto.STOCK_TOTAL)} unidades.
+                                            Basado en proyección de {producto.PROYECCIONES[0]?.fecha_inicio_proyeccion || 'próximo mes'}.
                                         </div>
                                     </div>
                                 </div>
@@ -2831,12 +3352,11 @@ const Dashboard = () => {
 
                             {/* Proyección Mensual */}
                             <div className="space-y-6">
-                                {/* Tabla de Proyección */}
                                 <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
                                     <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
                                         <h4 className="text-lg font-gotham-bold text-[#001A30] flex items-center gap-2">
                                             <FaChartLine className="text-[#0074CF]" />
-                                            Proyección Mensual Detallada
+                                            Proyección Detallada
                                         </h4>
                                         <div className="text-xs text-[#00B0F0]">
                                             Fecha de cálculo: {new Date().toLocaleDateString()}
@@ -2846,109 +3366,145 @@ const Dashboard = () => {
                                         <table className="w-full">
                                             <thead>
                                                 <tr className="bg-[#EDEDED]">
-                                                    <th className="text-left text-sm text-[#001A30] font-medium p-3">Mes</th>
+                                                    <th className="text-left text-sm text-[#001A30] font-medium p-3">Período</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Inicial</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Total</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Consumo</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Recibidos</th>
                                                     <th className="text-center text-sm text-[#001A30] font-medium p-3">Stock Final</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedidos</th>
-                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Acción</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Días de Tránsito</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Pedido Sugerido</th>
+                                                    <th className="text-center text-sm text-[#001A30] font-medium p-3">Alerta</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {producto.PROYECCIONES.map((proyeccion, index) => {
+                                                {isRefreshing ? (
+                                                    <tr>
+                                                        <td colSpan={7} className="p-4 text-center text-gray-500">
+                                                            <FaSpinner className="animate-spin inline-block mr-2" />
+                                                            Actualizando proyecciones...
+                                                        </td>
+                                                    </tr>
+                                                ) : projectionsWithDates.map((proyeccion, index) => {
                                                     const stockInicial = index === 0
-                                                        ? producto.STOCK_TOTAL
-                                                        : producto.PROYECCIONES[index - 1].stock_proyectado;
+                                                        ? producto.STOCK_FISICO
+                                                        : projectionsWithDates[index - 1].stock_proyectado +
+                                                        (projectionsWithDates[index - 1].unidades_a_pedir || 0);
 
-                                                    const pedidosRecibidos = index > 0
-                                                        ? producto.PROYECCIONES[index - 1].unidades_a_pedir || 0
-                                                        : 0;
-
-                                                    const pedidosPendientes = proyeccion.unidades_a_pedir > 0
-                                                        ? [{
-                                                            mes: producto.PROYECCIONES[index + 1]?.mes || 'Mes próximo',
-                                                            unidades: proyeccion.unidades_a_pedir
-                                                        }]
-                                                        : [];
-
-                                                    const stockTotal = proyeccion.stock_inicial + proyeccion.pedidos_recibidos;
+                                                    const isStockCritical = proyeccion.stock_proyectado < proyeccion.stock_seguridad;
+                                                    const hasPendingOrder = proyeccion.unidades_a_pedir > 0;
+                                                    const isFirstProjection = index === 0;
+                                                    const hasTransitDays = proyeccion.dias_transito && proyeccion.dias_transito > 0;
 
                                                     return (
                                                         <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
-                                                                <div className="text-xs text-[#0074CF] flex flex-col gap-1 mt-1 whitespace-nowrap">
-                                                                    {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== "No aplica" && (
+                                                                <div className="text-xs text-[#0074CF] flex flex-col gap-1 mt-1">
+                                                                    <span className="inline-flex items-center gap-1">
+                                                                        <FaCalendarAlt className="text-xs" />
+                                                                        {proyeccion.fecha_inicio_proyeccion}
+                                                                    </span>
+                                                                    {proyeccion.fecha_fin && (
                                                                         <span className="inline-flex items-center gap-1">
-                                                                            <FaCalendarAlt className="text-xs" />
-                                                                            Solicitud: {proyeccion.fecha_solicitud}
-                                                                        </span>
-                                                                    )}
-                                                                    {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== "No aplica" && (
-                                                                        <span className="inline-flex items-center gap-1">
-                                                                            <FaTruck className="text-xs" />
-                                                                            Arribo: {proyeccion.fecha_arribo}
-                                                                        </span>
-                                                                    )}
-                                                                    {proyeccion.fecha_reposicion && proyeccion.fecha_reposicion !== "No aplica" && (
-                                                                        <span className="inline-flex items-center gap-1">
-                                                                            <FaBoxes className="text-xs" />
-                                                                            Reposición: {proyeccion.fecha_reposicion}
+                                                                            <FaCalendarCheck className="text-xs" />
+                                                                            {proyeccion.fecha_fin}
                                                                         </span>
                                                                     )}
                                                                 </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
-                                                                {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] font-medium whitespace-nowrap">
-                                                                <div className="flex flex-col items-center">
-                                                                    {formatNumber(stockInicial + pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                                    {pedidosRecibidos > 0 && (
-                                                                        <span className="text-xs text-[#00B0F0] whitespace-nowrap">
-                                                                            <FaTruck className="inline mr-1" /> {formatNumber(pedidosRecibidos)} en tránsito
-                                                                        </span>
-                                                                    )}
-                                                                </div>
+                                                                <span title="Stock al inicio del período">{formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span></span>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
                                                                 {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
-                                                            <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
-                                                                {pedidosRecibidos > 0 ? (
-                                                                    <span className="flex items-center justify-center gap-1">
-                                                                        <FaTruck className="text-[#00B0F0]" />
-                                                                        {formatNumber(pedidosRecibidos)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                                    </span>
-                                                                ) : '-'}
+                                                                <div className="text-xs text-slate-500">
+                                                                    {proyeccion.dias_transito ? `${proyeccion.dias_transito} días` : 'Período completo'}
+                                                                </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] font-medium whitespace-nowrap">
                                                                 {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                            </td>
-                                                            <td className="text-center whitespace-nowrap">
-                                                                {pedidosPendientes.length > 0 ? (
-                                                                    <div className="flex flex-col gap-1 items-center">
-                                                                        {pedidosPendientes.map(({ mes, unidades }) => (
-                                                                            <span key={mes} className="flex items-center gap-1 bg-[#0074CF]/10 text-[#001A30] px-2 py-1 rounded text-xs">
-                                                                                <FaTruckLoading className="text-[#0074CF]" />
-                                                                                {mes}: {formatNumber(unidades)} unid.
-                                                                            </span>
-                                                                        ))}
-                                                                    </div>
-                                                                ) : '-'}
+                                                                <div className={`text-xs ${isStockCritical ? 'text-red-500' : proyeccion.alerta_stock ? 'text-amber-500' : 'text-green-500'}`}>
+                                                                    {isStockCritical ? 'Bajo stock de seguridad' : proyeccion.alerta_stock ? 'Alerta de stock' : 'Stock seguro'}
+                                                                </div>
                                                             </td>
                                                             <td className="p-3 text-center whitespace-nowrap">
-                                                                {proyeccion.cajas_a_pedir > 0 ? (
-                                                                    <span className="inline-flex items-center gap-2 bg-red-50 text-red-700 px-3 py-1 rounded-full text-xs font-medium">
-                                                                        <FiAlertTriangle className="w-3 h-3" />
-                                                                        Pedir {proyeccion.cajas_a_pedir} cajas
+                                                                {hasTransitDays && isFirstProjection ? (
+                                                                    <span className="inline-flex items-center gap-1 bg-blue-50 text-blue-700 px-2 py-1 rounded text-xs">
+                                                                        <FaCheck className="text-blue-500" />
+                                                                        {proyeccion.dias_transito} días
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="inline-flex items-center gap-2 bg-green-50 text-green-700 px-3 py-1 rounded-full text-xs font-medium">
+                                                                    <div className="flex flex-col gap-2 items-center">
+                                                                        <input
+                                                                            type="number"
+                                                                            min="1"
+                                                                            max={producto.CONFIGURACION.DIAS_LABORALES_MES}
+                                                                            value={transitDaysInputs[index] || ''}
+                                                                            onChange={(e) => setTransitDaysInputs({
+                                                                                ...transitDaysInputs,
+                                                                                [index]: parseInt(e.target.value) || 0
+                                                                            })}
+                                                                            className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-center text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                                                            placeholder="Días"
+                                                                            disabled={isApplyingDays === index}
+                                                                        />
+                                                                        <button
+                                                                            onClick={() => handleApplyTransitDays(index)}
+                                                                            disabled={isApplyingDays === index || !transitDaysInputs[index] || transitDaysInputs[index] <= 0}
+                                                                            className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center gap-1 disabled:opacity-50"
+                                                                        >
+                                                                            {isApplyingDays === index ? (
+                                                                                <FaSpinner className="animate-spin" />
+                                                                            ) : (
+                                                                                <FaCheck />
+                                                                            )}
+                                                                            Aplicar
+                                                                        </button>
+                                                                    </div>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 text-center whitespace-nowrap">
+                                                                {hasPendingOrder ? (
+                                                                    <div className="flex flex-col items-center gap-1">
+                                                                        <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-full text-xs font-medium">
+                                                                            <FaBox className="text-amber-600" />
+                                                                            {proyeccion.cajas_a_pedir} cajas
+                                                                        </span>
+                                                                        <span className="text-xs text-blue-600">
+                                                                            ({formatNumber(proyeccion.unidades_a_pedir)} unid.)
+                                                                        </span>
+                                                                        {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== "No aplica" && (
+                                                                            <span className="text-xs text-slate-500 mt-1">
+                                                                                Solicitar: {proyeccion.fecha_solicitud}
+                                                                            </span>
+                                                                        )}
+                                                                        {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== "No aplica" && (
+                                                                            <span className="text-xs text-slate-500">
+                                                                                Arribo: {proyeccion.fecha_arribo}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded text-xs">
+                                                                        <FaCheck className="text-green-500" />
+                                                                        {proyeccion.accion_requerida}
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="p-3 text-center">
+                                                                {isStockCritical ? (
+                                                                    <span className="inline-flex items-center gap-1 bg-red-50 text-red-700 px-2 py-1 rounded-full text-xs font-medium">
+                                                                        <FiAlertTriangle className="w-3 h-3" />
+                                                                        Crítico
+                                                                    </span>
+                                                                ) : proyeccion.alerta_stock ? (
+                                                                    <span className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-1 rounded-full text-xs font-medium">
+                                                                        <FiAlertTriangle className="w-3 h-3" />
+                                                                        Alerta
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="inline-flex items-center gap-1 bg-green-50 text-green-700 px-2 py-1 rounded text-xs">
                                                                         <FiCheckCircle className="w-3 h-3" />
-                                                                        Stock suficiente
+                                                                        Normal
                                                                     </span>
                                                                 )}
                                                             </td>
@@ -2959,128 +3515,8 @@ const Dashboard = () => {
                                         </table>
                                     </div>
                                 </div>
-
-                                {/* Contenedor Explicativo */}
-                                <div className="bg-white rounded-lg border border-[#EDEDED] shadow-sm">
-                                    <div className="flex items-center justify-between p-4 border-b border-[#EDEDED]">
-                                        <h4 className="text-lg font-bold text-[#001A30] flex items-center gap-2">
-                                            <FaInfoCircle className="text-[#0074CF]" />
-                                            Dinámica del Inventario y Gestión de Pedidos
-                                        </h4>
-                                    </div>
-
-                                    <div className="p-4 grid gap-4 md:grid-cols-2">
-                                        {/* Flujo de Inventario - Mejorado */}
-                                        <div className="bg-[#00B0F0]/10 border-l-4 border-[#00B0F0] p-3 rounded-lg">
-                                            <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
-                                                <FaBoxOpen className="text-[#00B0F0]" />
-                                                Flujo del Inventario Mensual
-                                            </h5>
-                                            <div className="text-sm text-[#001A30] space-y-3">
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FaBox className="text-[#00B0F0] text-xs" />
-                                                        Stock Inicial:
-                                                    </p>
-                                                    <p className="pl-5 text-xs text-[#0074CF]">
-                                                        Inventario disponible al inicio del mes, incluyendo:
-                                                        <span className="block mt-1">• Stock físico en almacén</span>
-                                                    </p>
-                                                </div>
-
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FaChartLine className="text-[#00B0F0] text-xs" />
-                                                        Consumo Proyectado:
-                                                    </p>
-                                                    <p className="pl-5 text-xs text-[#0074CF]">
-                                                        Basado en el promedio de los últimos {Object.keys(producto.HISTORICO_CONSUMOS).length} meses
-                                                        <span className="block mt-1">• Ajustado por estacionalidad cuando aplica</span>
-                                                    </p>
-                                                </div>
-
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FaTruck className="text-[#00B0F0] text-xs" />
-                                                        Stock Final:
-                                                    </p>
-                                                    <p className="pl-5 text-xs text-[#0074CF]">
-                                                        Resultado después de:
-                                                        <span className="block mt-1">• Consumo mensual proyectado</span>
-                                                        <span className="block">• Recepción de pedidos ordenados previamente</span>
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Gestión de Pedidos - Mejorado con fechas */}
-                                        <div className="bg-[#0074CF]/10 border-l-4 border-[#0074CF] p-3 rounded-lg">
-                                            <h5 className="font-bold text-[#001A30] mb-2 flex items-center gap-2">
-                                                <FaTruck className="text-[#0074CF]" />
-                                                Gestión de Pedidos y Fechas Clave
-                                            </h5>
-                                            <div className="text-sm text-[#001A30] space-y-3">
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FiAlertTriangle className="text-red-500 text-xs" />
-                                                        Cálculo de Unidades a Pedir:
-                                                    </p>
-                                                    <p className="pl-5 text-xs text-[#0074CF]">
-                                                        Se calculan cuando el stock proyectado cae bajo el punto de reorden:
-                                                        <span className="block mt-1">• Cantidad = (Punto de Reorden - Stock Final) + Margen de Seguridad</span>
-                                                        <span className="block">• Ajustado a múltiplos de {producto.UNIDADES_POR_CAJA} unidades por caja</span>
-                                                    </p>
-                                                </div>
-
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FaCalendarAlt className="text-[#0074CF] text-xs" />
-                                                        Fechas Clave:
-                                                    </p>
-                                                    <div className="pl-5 text-xs text-[#0074CF] space-y-1">
-                                                        <div>
-                                                            <span className="font-semibold">Solicitud:</span>
-                                                            <span className="block">Último día para ordenar considerando lead time de {producto.CONFIGURACION.LEAD_TIME_REPOSICION} días</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-semibold">Arribo:</span>
-                                                            <span className="block">Fecha estimada de llegada (solicitud + lead time)</span>
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-semibold">Reposición Crítica:</span>
-                                                            <span className="block">Día exacto cuando el stock alcanza el punto de reorden</span>
-                                                        </div>
-                                                    </div>
-                                                </div>
-
-                                                <div>
-                                                    <p className="font-medium flex items-center gap-1">
-                                                        <FaClock className="text-[#0074CF] text-xs" />
-                                                        Consideraciones:
-                                                    </p>
-                                                    <p className="pl-5 text-xs text-[#0074CF]">
-                                                        • Las fechas consideran días laborales
-                                                        <span className="block">• El lead time incluye producción, transporte y aduanas</span>
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Nota Integradora */}
-                                    <div className="mt-4 p-3 bg-[#EDEDED] rounded-lg text-xs text-[#001A30]">
-                                        <div className="flex items-start gap-2">
-                                            <FaInfoCircle className="text-[#0074CF] mt-0.5 flex-shrink-0" />
-                                            <div>
-                                                <p className="font-medium">Cómo interpretar la proyección:</p>
-                                                <p>1. Cuando el stock final es menor al punto de reorden, se generan pedidos para el mes siguiente.</p>
-                                                <p>2. Los pedidos ordenados en un mes llegan en el siguiente mes (ej: ordenados en Enero, llegan en Febrero).</p>
-                                                <p>3. La fecha crítica de reposición se calcula considerando el consumo diario exacto hasta alcanzar el punto de reorden.</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
                             </div>
+
                         </div>
                     )}
 
@@ -3974,7 +4410,7 @@ const Dashboard = () => {
                                             <tbody className="divide-y divide-slate-100">
                                                 {currentPredictions.length > 0 ? (
                                                     currentPredictions.map((producto) => {
-                                                        const stockTotal = producto.STOCK_TOTAL
+                                                        const stockTotal = producto.STOCK_FISICO
                                                         const status = getStockStatus(
                                                             stockTotal,
                                                             producto.STOCK_SEGURIDAD,
@@ -4005,7 +4441,7 @@ const Dashboard = () => {
                                                                             status === 'warning' ? 'bg-amber-100 text-amber-700' :
                                                                                 'bg-emerald-100 text-emerald-700'
                                                                             } shadow-sm`}>
-                                                                            {formatNumber(stockTotal)} unid.
+                                                                            {formatNumber(producto.STOCK_FISICO)} unid.
                                                                         </span>
                                                                         <div className="flex gap-2 text-xs text-slate-500 mt-1">
                                                                             <span className="flex items-center">
