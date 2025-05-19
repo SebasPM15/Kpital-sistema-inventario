@@ -517,9 +517,9 @@ class PythonService {
         let currentDate = new Date(fechaInicioProyeccion);
         const proyecciones = [];
         let projectionIndex = 0;
-        const maxProjections = 6; // Limitar a 6 proyecciones
+        const maxProjections = 18; // Limitar a 6 proyecciones
         const endDate = new Date(currentDate);
-        endDate.setMonth(endDate.getMonth() + 6); // Cubrir 6 meses
+        endDate.setMonth(endDate.getMonth() + 18); // Cubrir 6 meses
 
         // 4. Generar proyecciones dinámicas
         while (currentDate < endDate && projectionIndex < maxProjections) {

@@ -39,6 +39,7 @@ import ReportsSection from './ReportsSection';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { toast } from 'react-toastify';
+import ProjectionsPagination from './ProjectionsPagination';
 
 Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
@@ -2885,6 +2886,13 @@ const Dashboard = () => {
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [notification, setNotification] = useState<string | null>(null);
 
+        // Pagination state
+        const [currentPage, setCurrentPage] = useState(1);
+        const itemsPerPage = 5; // Number of projections per page
+        const totalPages = Math.ceil(projectionsWithDates.length / itemsPerPage);
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const currentProjections = projectionsWithDates.slice(startIndex, startIndex + itemsPerPage);
+
         useEffect(() => {
             if (selectedPrediction?.data?.PROYECCIONES) {
                 const calculateProjectionDates = () => {
@@ -3383,19 +3391,21 @@ const Dashboard = () => {
                                                             Actualizando proyecciones...
                                                         </td>
                                                     </tr>
-                                                ) : projectionsWithDates.map((proyeccion, index) => {
-                                                    const stockInicial = index === 0
-                                                        ? producto.STOCK_FISICO
-                                                        : projectionsWithDates[index - 1].stock_proyectado +
-                                                        (projectionsWithDates[index - 1].unidades_a_pedir || 0);
+                                                ) : currentProjections.map((proyeccion, index) => {
+                                                    const globalIndex = startIndex + index;
+                                                    const stockInicial =
+                                                        globalIndex === 0
+                                                            ? producto.STOCK_FISICO
+                                                            : projectionsWithDates[globalIndex - 1].stock_proyectado +
+                                                            (projectionsWithDates[globalIndex - 1].unidades_a_pedir || 0);
 
                                                     const isStockCritical = proyeccion.stock_proyectado < proyeccion.stock_seguridad;
                                                     const hasPendingOrder = proyeccion.unidades_a_pedir > 0;
-                                                    const isFirstProjection = index === 0;
+                                                    const isFirstProjection = globalIndex === 0;
                                                     const hasTransitDays = proyeccion.dias_transito && proyeccion.dias_transito > 0;
 
                                                     return (
-                                                        <tr key={index} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
+                                                        <tr key={globalIndex} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
                                                                 <div className="text-xs text-[#0074CF] flex flex-col gap-1 mt-1">
@@ -3412,7 +3422,9 @@ const Dashboard = () => {
                                                                 </div>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
-                                                                <span title="Stock al inicio del período">{formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span></span>
+                                                                <span title="Stock al inicio del período">
+                                                                    {formatNumber(stockInicial)} <span className="text-xs text-[#0074CF]">unid.</span>
+                                                                </span>
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] whitespace-nowrap">
                                                                 {formatNumber(proyeccion.consumo_mensual)} <span className="text-xs text-[#0074CF]">unid.</span>
@@ -3422,7 +3434,10 @@ const Dashboard = () => {
                                                             </td>
                                                             <td className="p-3 text-center text-sm text-[#001A30] font-medium whitespace-nowrap">
                                                                 {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
-                                                                <div className={`text-xs ${isStockCritical ? 'text-red-500' : proyeccion.alerta_stock ? 'text-amber-500' : 'text-green-500'}`}>
+                                                                <div
+                                                                    className={`text-xs ${isStockCritical ? 'text-red-500' : proyeccion.alerta_stock ? 'text-amber-500' : 'text-green-500'
+                                                                        }`}
+                                                                >
                                                                     {isStockCritical ? 'Bajo stock de seguridad' : proyeccion.alerta_stock ? 'Alerta de stock' : 'Stock seguro'}
                                                                 </div>
                                                             </td>
@@ -3438,25 +3453,27 @@ const Dashboard = () => {
                                                                             type="number"
                                                                             min="1"
                                                                             max={producto.CONFIGURACION.DIAS_LABORALES_MES}
-                                                                            value={transitDaysInputs[index] || ''}
-                                                                            onChange={(e) => setTransitDaysInputs({
-                                                                                ...transitDaysInputs,
-                                                                                [index]: parseInt(e.target.value) || 0
-                                                                            })}
+                                                                            value={transitDaysInputs[globalIndex] || ''}
+                                                                            onChange={(e) =>
+                                                                                setTransitDaysInputs({
+                                                                                    ...transitDaysInputs,
+                                                                                    [globalIndex]: parseInt(e.target.value) || 0,
+                                                                                })
+                                                                            }
                                                                             className="w-20 px-2 py-1 border border-gray-300 rounded text-sm text-center text-gray-800 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                                                             placeholder="Días"
-                                                                            disabled={isApplyingDays === index}
+                                                                            disabled={isApplyingDays === globalIndex}
                                                                         />
                                                                         <button
-                                                                            onClick={() => handleApplyTransitDays(index)}
-                                                                            disabled={isApplyingDays === index || !transitDaysInputs[index] || transitDaysInputs[index] <= 0}
+                                                                            onClick={() => handleApplyTransitDays(globalIndex)}
+                                                                            disabled={
+                                                                                isApplyingDays === globalIndex ||
+                                                                                !transitDaysInputs[globalIndex] ||
+                                                                                transitDaysInputs[globalIndex] <= 0
+                                                                            }
                                                                             className="px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs flex items-center gap-1 disabled:opacity-50"
                                                                         >
-                                                                            {isApplyingDays === index ? (
-                                                                                <FaSpinner className="animate-spin" />
-                                                                            ) : (
-                                                                                <FaCheck />
-                                                                            )}
+                                                                            {isApplyingDays === globalIndex ? <FaSpinner className="animate-spin" /> : <FaCheck />}
                                                                             Aplicar
                                                                         </button>
                                                                     </div>
@@ -3469,18 +3486,12 @@ const Dashboard = () => {
                                                                             <FaBox className="text-amber-600" />
                                                                             {proyeccion.cajas_a_pedir} cajas
                                                                         </span>
-                                                                        <span className="text-xs text-blue-600">
-                                                                            ({formatNumber(proyeccion.unidades_a_pedir)} unid.)
-                                                                        </span>
-                                                                        {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== "No aplica" && (
-                                                                            <span className="text-xs text-slate-500 mt-1">
-                                                                                Solicitar: {proyeccion.fecha_solicitud}
-                                                                            </span>
+                                                                        <span className="text-xs text-blue-600">({formatNumber(proyeccion.unidades_a_pedir)} unid.)</span>
+                                                                        {proyeccion.fecha_solicitud && proyeccion.fecha_solicitud !== 'No aplica' && (
+                                                                            <span className="text-xs text-slate-500 mt-1">Solicitar: {proyeccion.fecha_solicitud}</span>
                                                                         )}
-                                                                        {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== "No aplica" && (
-                                                                            <span className="text-xs text-slate-500">
-                                                                                Arribo: {proyeccion.fecha_arribo}
-                                                                            </span>
+                                                                        {proyeccion.fecha_arribo && proyeccion.fecha_arribo !== 'No aplica' && (
+                                                                            <span className="text-xs text-slate-500">Arribo: {proyeccion.fecha_arribo}</span>
                                                                         )}
                                                                     </div>
                                                                 ) : (
@@ -3515,6 +3526,14 @@ const Dashboard = () => {
                                         </table>
                                     </div>
                                 </div>
+                                {/* Add Pagination Component */}
+                                {projectionsWithDates.length > 0 && (
+                                    <ProjectionsPagination
+                                        currentPage={currentPage}
+                                        totalPages={totalPages}
+                                        setCurrentPage={setCurrentPage}
+                                    />
+                                )}
                             </div>
 
                         </div>
