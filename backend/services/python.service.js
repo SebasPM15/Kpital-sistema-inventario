@@ -594,7 +594,7 @@ class PythonService {
 
             // E. Crear proyección
             proyecciones.push({
-                mes: `${monthStr}${diasTransito < diasConsumoMensual ? ` (${diasTransito} días)` : ''}`,
+                mes: `${monthStr} (${diasTransito} días)`, // Mostrar siempre los días de tránsito
                 stock_inicial: parseFloat(stockInicialMes.toFixed(2)),
                 stock_proyectado: parseFloat(stockProyectado.toFixed(2)),
                 consumo_mensual: parseFloat(consumoMensual.toFixed(2)),
