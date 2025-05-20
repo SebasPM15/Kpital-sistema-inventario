@@ -82,6 +82,7 @@ interface Proyeccion {
     accion_requerida: string;
     stock_total?: number;
     consumo_inicial_transito?: number; // Agregado como opcional
+    transitDaysApplied?: boolean;
 }
 
 interface ProductoData {
@@ -1226,11 +1227,14 @@ const Dashboard = () => {
             currentY += 25;
 
             // --- Tabla de productos ---
-            const productsAPedir = products.filter((p) => p.CAJAS_A_PEDIR && p.CAJAS_A_PEDIR > 0);
-            if (productsAPedir.length === 0) {
-                alert('No hay productos con cajas a pedir.');
-                return;
-            }
+            const productsAPedir = products
+                .filter((p) => p.CAJAS_A_PEDIR && p.CAJAS_A_PEDIR > 0 && p.UNIDADES_A_PEDIR && p.UNIDADES_A_PEDIR > 0)
+                .map(p => ({
+                    ...p,
+                    CAJAS_A_PEDIR: Number(p.CAJAS_A_PEDIR),
+                    UNIDADES_A_PEDIR: Number(p.UNIDADES_A_PEDIR),
+                    PRECIO_UNITARIO: Number(p.PRECIO_UNITARIO || 0)
+                }));
 
             const tableData = productsAPedir.map((p, index) => [
                 (index + 1).toString(),
@@ -1241,6 +1245,22 @@ const Dashboard = () => {
                 `$${(p.PRECIO_UNITARIO || 0).toFixed(2)}`,
                 `$${((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)).toFixed(2)}`,
                 new Date().toLocaleDateString('es-ES')
+            ]);
+
+            // 🧮 Cálculo de totales
+            const totalUnidades = productsAPedir.reduce((sum, p) => sum + (p.UNIDADES_A_PEDIR || 0), 0);
+            const totalCajas = productsAPedir.reduce((sum, p) => sum + (p.CAJAS_A_PEDIR || 0), 0);
+            const totalPrecioUnitario = productsAPedir.reduce((sum, p) => sum + (p.PRECIO_UNITARIO || 0), 0);
+            const totalTotal = productsAPedir.reduce((sum, p) => sum + ((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)), 0);
+
+            // ✅ Fila de totales limpia, sin cortar texto
+            tableData.push([
+                '', '', `TOTAL (${productsAPedir.length})`,
+                totalUnidades.toString(),
+                totalCajas.toString(),
+                `$${totalPrecioUnitario.toFixed(2)}`,
+                `$${totalTotal.toFixed(2)}`,
+                ''
             ]);
 
             autoTable(pdf, {
@@ -1260,8 +1280,37 @@ const Dashboard = () => {
                     5: { cellWidth: 25, halign: 'right' },
                     6: { cellWidth: 25, halign: 'right' },
                     7: { cellWidth: 28, halign: 'center' }
+                },
+
+                // 👇 Esto es lo nuevo: pintamos y dibujamos texto de la última fila
+                didDrawCell: (data) => {
+                    const rows = tableData.length;
+                    const isLastRow = data.row.index === rows - 1;
+
+                    if (isLastRow) {
+                        const { cell, doc, column, row } = data;
+
+                        doc.setFillColor(230, 230, 230); // gris claro
+                        doc.setDrawColor(150, 150, 150); // borde
+                        doc.rect(cell.x, cell.y, cell.width, cell.height, 'FD'); // Fondo + borde
+
+                        doc.setFont('helvetica', 'bold');
+                        doc.setTextColor(0, 0, 0);
+                        doc.setFontSize(9);
+
+                        // Si es una celda vacía (inicio o final), no pongas texto
+                        const value = row.cells[column.index]?.text?.join(' ')?.trim() || '';
+                        if (value !== '') {
+                            const textX = cell.x + cell.width / 2;
+                            const textY = cell.y + cell.height / 2 + 1;
+                            doc.text(value, textX, textY, { align: 'center', baseline: 'middle' });
+                        }
+                    }
                 }
+
             });
+
+
 
             // --- Total general ---
             const totalOrden = productsAPedir.reduce((sum, p) => sum + ((p.PRECIO_UNITARIO || 0) * (p.UNIDADES_A_PEDIR || 0)), 0);
@@ -1329,6 +1378,8 @@ const Dashboard = () => {
 
             const predictionsResponse = await axios.get(`${API_URL}/predictions`);
             setAllPredictions(predictionsResponse.data.data || []);
+            // ✅ Limpiar las marcas visuales al cargar un nuevo archivo
+            localStorage.removeItem('transitDaysMap');
 
         } catch (error: any) {
             console.error('Error:', error);
@@ -2349,7 +2400,8 @@ const Dashboard = () => {
                     message?: string;
                 }>(`${API_URL}/predictions/${codigo}/transit/days`, {
                     transitDays: Number(transitDays),
-                    recalculateProjections: true
+                    recalculateProjections: true,
+                    transitDaysApplied: true // Enviar la bandera para marcar que los días fueron aplicados
                 });
 
                 if (response.data.success) {
@@ -2538,14 +2590,15 @@ const Dashboard = () => {
                     throw new Error(unitsResponse.data.error || 'Error al agregar unidades en tránsito');
                 }
 
-                // 2. Enviar días de tránsito
+                // 2. Enviar días de tránsito con la bandera transitDaysApplied
                 const daysResponse = await axios.post<{
                     success: boolean;
                     data: ProductoData;
                     message?: string;
                 }>(`${API_URL}/predictions/${codigo}/transit/days`, {
                     transitDays: Number(transitDays),
-                    recalculateProjections: true
+                    recalculateProjections: true,
+                    transitDaysApplied: true // Enviar la bandera para marcar que los días fueron aplicados
                 });
 
                 if (!daysResponse.data.success) {
@@ -2897,6 +2950,8 @@ const Dashboard = () => {
             if (selectedPrediction?.data?.PROYECCIONES) {
                 const calculateProjectionDates = () => {
                     try {
+                        const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
+
                         const projections = selectedPrediction.data.PROYECCIONES.map((proj, index) => {
                             let startDate = new Date(proj.fecha_inicio_proyeccion || selectedPrediction.data.FECHA_INICIO || Date.now());
                             if (isNaN(startDate.getTime())) {
@@ -2910,10 +2965,13 @@ const Dashboard = () => {
                                 endDate = new Date();
                             }
 
+                            const localKey = `${selectedPrediction.data.CODIGO}_${index}`;
+
                             return {
                                 ...proj,
                                 fecha_inicio_proyeccion: startDate.toISOString().split('T')[0],
-                                fecha_fin: endDate.toISOString().split('T')[0]
+                                fecha_fin: endDate.toISOString().split('T')[0],
+                                transitDaysApplied: appliedMap[localKey] || false // ✅ AQUÍ aplicamos la marca real
                             };
                         });
 
@@ -2927,6 +2985,7 @@ const Dashboard = () => {
                 calculateProjectionDates();
             }
         }, [selectedPrediction]);
+
 
         const addBusinessDays = (startDate: Date, days: number) => {
             let date = new Date(startDate);
@@ -2963,7 +3022,7 @@ const Dashboard = () => {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
-                    body: JSON.stringify({ days })
+                    body: JSON.stringify({ days, transitDaysApplied: true })
                 });
 
                 if (!response.ok) {
@@ -2979,7 +3038,7 @@ const Dashboard = () => {
                     return;
                 }
 
-                // Actualizar proyecciones localmente
+                // Mapear las proyecciones actualizadas, preservando los valores previos de transitDaysApplied
                 const updatedProjections = updatedProduct.PROYECCIONES.map((proj: Proyeccion, index: number) => {
                     let startDate = new Date(proj.fecha_inicio_proyeccion || updatedProduct.FECHA_INICIO || Date.now());
                     if (isNaN(startDate.getTime())) {
@@ -2991,19 +3050,38 @@ const Dashboard = () => {
                         endDate = new Date();
                     }
 
+                    // Obtener el estado previo de la proyección para preservar transitDaysApplied
+                    const prevProjection = projectionsWithDates[index] || {};
+
                     return {
                         ...proj,
                         fecha_inicio_proyeccion: startDate.toISOString().split('T')[0],
-                        fecha_fin: endDate.toISOString().split('T')[0]
+                        fecha_fin: endDate.toISOString().split('T')[0],
+                        // Preservar transitDaysApplied del estado previo si no es la proyección que estamos actualizando
+                        // Si es la proyección actualizada (projectionIndex), establecerlo como true
+                        transitDaysApplied: index === projectionIndex
+                            ? true
+                            : (prevProjection.transitDaysApplied ?? proj.transitDaysApplied ?? false)
                     };
                 });
 
+                // Actualizar el estado con las proyecciones modificadas
                 setProjectionsWithDates(updatedProjections);
+
+                // Guardar en localStorage que esta proyección fue aplicada
+                const localKey = `${producto.CODIGO}_${projectionIndex}`;
+                const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
+                appliedMap[localKey] = true;
+                localStorage.setItem('transitDaysMap', JSON.stringify(appliedMap));
+
+
+                // Limpiar el input después de aplicar
                 setTransitDaysInputs(prev => {
                     const newInputs = { ...prev };
-                    delete newInputs[projectionIndex]; // Limpiar input después de aplicar
+                    delete newInputs[projectionIndex];
                     return newInputs;
                 });
+
                 setNotification(`Días de tránsito (${days}) aplicados correctamente`);
                 setTimeout(() => setNotification(null), 3000);
             } catch (error) {
@@ -3405,18 +3483,24 @@ const Dashboard = () => {
                                                     const hasTransitDays = proyeccion.dias_transito && proyeccion.dias_transito > 0;
 
                                                     return (
-                                                        <tr key={globalIndex} className="border-t border-[#EDEDED] hover:bg-[#EDEDED]/50">
+                                                        <tr
+                                                            key={globalIndex}
+                                                            className={`border-t border-[#EDEDED] hover:bg-[#EDEDED]/50 ${proyeccion.transitDaysApplied
+                                                                    ? 'bg-[#D1FAE5] border border-2 border-[#15803D]'
+                                                                    : ''
+                                                                }`}
+                                                        >
                                                             <td className="p-3 text-sm text-[#001A30]">
                                                                 <div className="font-medium">{proyeccion.mes}</div>
                                                                 <div className="text-xs text-[#0074CF] flex flex-col gap-1 mt-1">
                                                                     <span className="inline-flex items-center gap-1">
                                                                         <FaCalendarAlt className="text-xs" />
-                                                                        {proyeccion.fecha_inicio_proyeccion}
+                                                                        Fecha De Solicitud: {proyeccion.fecha_inicio_proyeccion}
                                                                     </span>
                                                                     {proyeccion.fecha_fin && (
                                                                         <span className="inline-flex items-center gap-1">
                                                                             <FaCalendarCheck className="text-xs" />
-                                                                            {proyeccion.fecha_fin}
+                                                                            Fecha De Arribo: {proyeccion.fecha_fin}
                                                                         </span>
                                                                     )}
                                                                 </div>
@@ -4342,7 +4426,18 @@ const Dashboard = () => {
                                     </div>
 
                                     <button
-                                        onClick={() => generateOrderPDF(allPredictions)}
+                                        onClick={() => {
+                                            const productosAEnviar = allPredictions
+                                                .filter(p => p.PROYECCIONES?.[0]?.cajas_a_pedir > 0)
+                                                .map(p => ({
+                                                    ...p,
+                                                    CAJAS_A_PEDIR: p.PROYECCIONES[0].cajas_a_pedir,
+                                                    UNIDADES_A_PEDIR: p.PROYECCIONES[0].unidades_a_pedir
+                                                    //PRECIO_UNITARIO: p.PROYECCIONES[0].precio_unitario || 0
+                                                }));
+
+                                            generateOrderPDF(productosAEnviar);
+                                        }}
                                         className="flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-5 py-2 rounded-2xl font-medium text-sm transition-all shadow-md hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
                                     >
                                         <svg
@@ -4361,6 +4456,8 @@ const Dashboard = () => {
                                         </svg>
                                         <span>Generar Orden de Pedidos</span>
                                     </button>
+
+
 
                                     <button
                                         onClick={() => {
