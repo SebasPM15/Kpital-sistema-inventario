@@ -11,20 +11,19 @@ class AlertService {
 
     // Configuración del transporter para enviar emails
     createTransporter() {
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
+        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD || !process.env.EMAIL_HOST || !process.env.EMAIL_PORT) {
             logger.error('❌ Configuración de email incompleta');
             throw new Error('Las credenciales de email no están configuradas');
-        }  
-        
+        }
+
         return nodemailer.createTransport({
-            service: 'gmail',
+            host: process.env.EMAIL_HOST,
+            port: parseInt(process.env.EMAIL_PORT, 10),
+            secure: process.env.EMAIL_PORT === '465', // true para puerto 465, false para otros
             auth: {
                 user: process.env.EMAIL_USER,
                 pass: process.env.EMAIL_PASSWORD,
             },
-            tls: {
-                rejectUnauthorized: false // Solo para desarrollo
-            }
         });
     }
 
@@ -33,7 +32,7 @@ class AlertService {
             if (!to || !subject || !html) {
                 throw new Error('Faltan parámetros para enviar el email');
             }
-            
+
             const transporter = this.createTransporter();
 
             const mailOptions = {
@@ -63,48 +62,92 @@ class AlertService {
         const proyeccion = producto.PROYECCIONES[0];
 
         return `
-      <div style="font-family: Arial, sans-serif; color: #333; max-width: 600px;">
-        <div style="background-color: #d9534f; padding: 15px; border-radius: 5px 5px 0 0;">
-          <h2 style="color: white; margin: 0;">⚠️ ALERTA DE STOCK CRÍTICO ⚠️</h2>
-        </div>
-        
-        <div style="padding: 20px; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px;">
-          <h3 style="margin-top: 0; color: #d9534f;">${producto.DESCRIPCION}</h3>
-          <p style="color: #6c757d; margin-top: -10px; font-size: 0.9em;">
-            <strong>Periodo:</strong> ${proyeccion.mes} | 
-            <strong>Código:</strong> ${producto.CODIGO}
-          </p>
-          
-          <div style="display: flex; margin: 15px 0; gap: 10px;">
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
-              <h4 style="margin-top: 0; color: #d9534f;">Stock</h4>
-              <p><strong>Inicial:</strong> ${proyeccion.stock_inicial} unidades</p>
-              <p><strong>Proyectado:</strong> ${proyeccion.stock_proyectado} unidades</p>
-              <p><strong>Días cobertura:</strong> ${Math.round(proyeccion.tiempo_cobertura)} días</p>
+        <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif; color: #333; max-width: 650px; margin: 0 auto; border: 1px solid #e0e0e0; border-radius: 8px; overflow: hidden;">
+            <!-- Encabezado -->
+            <div style="background: linear-gradient(90deg, #003087 0%, #0052cc 100%); padding: 20px; color: white;">
+            <h2 style="margin: 0; font-size: 24px; font-weight: 600;">⚠️ Alerta de Stock Crítico</h2>
+            <p style="margin: 5px 0 0; font-size: 14px; opacity: 0.9;">Sistema Automático de Gestión de Inventarios</p>
             </div>
             
-            <div style="flex: 1; background-color: #f8f9fa; padding: 10px; border-radius: 5px;">
-              <h4 style="margin-top: 0; color: #d9534f;">Acción requerida</h4>
-              <p><strong>${proyeccion.deficit > 0 ? 'DÉFICIT' : 'Stock suficiente'}</strong></p>
-              <p>${proyeccion.accion_requerida}</p>
-              <p><strong>Fecha reposición:</strong> ${proyeccion.fecha_reposicion}</p>
+            <!-- Cuerpo -->
+            <div style="padding: 25px; background: #ffffff;">
+            <h3 style="margin: 0 0 10px; color: #003087; font-size: 20px; font-weight: 600;">${producto.DESCRIPCION}</h3>
+            <p style="color: #666; font-size: 14px; margin: 0 0 20px;">
+                <strong>Código:</strong> ${producto.CODIGO} | 
+                <strong>Periodo:</strong> ${proyeccion.mes}
+            </p>
+
+            <!-- Información de Stock -->
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px;">
+                <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <h4 style="margin: 0 0 10px; color: #003087; font-size: 16px; font-weight: 600;">Estado del Stock</h4>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Inicial:</strong> ${proyeccion.stock_inicial.toFixed(2)} unidades</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Proyectado:</strong> ${proyeccion.stock_proyectado.toFixed(2)} unidades</p>
+                <p style="margin: 5px 0; font-size: 14px;"><strong>Días de cobertura:</strong> ${Math.round(proyeccion.tiempo_cobertura)} días</p>
+                </div>
+                
+                <div style="background: #f8fafc; padding: 15px; border-radius: 6px; border: 1px solid #e0e0e0;">
+                <h4 style="margin: 0 0 10px; color: #003087; font-size: 16px; font-weight: 600;">Acción Requerida</h4>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Estado:</strong> 
+                    <span style="color: ${proyeccion.deficit > 0 ? '#d32f2f' : '#388e3c'}">
+                    ${proyeccion.deficit > 0 ? 'DÉFICIT' : 'Stock suficiente'}
+                    </span>
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Acción:</strong> ${proyeccion.accion_requerida}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Unidades a pedir:</strong> ${proyeccion.unidades_a_pedir.toFixed(2)} unidades
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                    <strong>Cajas a pedir:</strong> ${proyeccion.cajas_a_pedir} cajas
+                </p>
+                </div>
             </div>
-          </div>
-          
-          <div style="margin-top: 20px; padding: 10px; background-color: #fff3cd; border-radius: 5px;">
-            <p style="margin: 0; font-weight: bold;">⚠️ Atención: Stock crítico detectado con 10 días de anticipación</p>
-          </div>
+
+            <!-- Fechas Clave -->
+            <div style="background: #e3f2fd; padding: 15px; border-radius: 6px; border: 1px solid #bbdefb; margin-bottom: 20px;">
+                <h4 style="margin: 0 0 10px; color: #003087; font-size: 16px; font-weight: 600;">Fechas Clave</h4>
+                <p style="margin: 5px 0; font-size: 14px;">
+                <strong>Fecha de solicitud:</strong> ${proyeccion.fecha_solicitud}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                <strong>Fecha de reposición:</strong> ${proyeccion.fecha_reposicion}
+                </p>
+                <p style="margin: 5px 0; font-size: 14px;">
+                <strong>Fecha estimada de arribo:</strong> ${proyeccion.fecha_arribo}
+                </p>
+            </div>
+
+            <!-- Advertencia -->
+            <div style="background: #fff3cd; padding: 15px; border-radius: 6px; border: 1px solid #ffeeba;">
+                <p style="margin: 0; font-size: 14px; color: #856404; font-weight: 500;">
+                ⚠️ Se detectó un nivel de stock crítico con ${Math.round(proyeccion.tiempo_cobertura)} días de cobertura. 
+                Se recomienda tomar acción inmediata.
+                </p>
+            </div>
+            </div>
+
+            <!-- Pie de página -->
+            <div style="background: #f8fafc; padding: 15px; text-align: center; font-size: 12px; color: #666; border-top: 1px solid #e0e0e0;">
+            <p style="margin: 0;">
+                Sistema Automático de Alertas de Stock | ${new Date().toLocaleString('es-ES', {
+                dateStyle: 'medium',
+                timeStyle: 'short',
+                })}
+            </p>
+            <p style="margin: 5px 0 0;">
+                Este es un correo automático, por favor no respondas directamente. 
+                Contacta a <a href="mailto:${process.env.EMAIL_USER}" style="color: #0052cc;">${process.env.EMAIL_USER}</a> para soporte.
+            </p>
+            </div>
         </div>
-        
-        <p style="font-size: 0.8em; color: #6c757d; text-align: center; margin-top: 20px;">
-          Sistema Automático de Alertas de Stock | ${new Date().toLocaleDateString()}
-        </p>
-      </div>
-    `;
+        `;
     }
 
     async evaluarYEnviarAlerta(prediction, email, isManual = false) {
-        if (!prediction.success) {
+        if (!prediction.success || !prediction.data) {
             return { success: false, error: "Predicción inválida." };
         }
 
@@ -117,8 +160,9 @@ class AlertService {
         const primeraProyeccion = producto.PROYECCIONES[0];
         const hoy = new Date().toDateString();
 
-        // Verificar si hay alerta
-        const debeAlertar = primeraProyeccion.tiempo_cobertura <= 10 ||
+        // Verificar condiciones para enviar alerta
+        const debeAlertar =
+            primeraProyeccion.tiempo_cobertura <= 10 ||
             primeraProyeccion.alerta_stock ||
             primeraProyeccion.deficit > 0;
 
@@ -127,26 +171,38 @@ class AlertService {
             return { success: false, message: "No se requiere alerta." };
         }
 
-        // Verificar si ya se envió hoy (solo para envíos automáticos)
+        // Evitar envío redundante si no es manual
         if (!isManual && this.lastSentDates.get(producto.CODIGO) === hoy) {
             logger.info(`Alerta ya enviada hoy para producto ${producto.CODIGO}`);
-            return { 
-                success: false, 
+            return {
+                success: false,
                 message: "Alerta ya enviada hoy.",
-                alreadySent: true
+                alreadySent: true,
             };
         }
 
-        const subject = `[ALERTA] ${producto.DESCRIPCION} - Stock crítico en ${primeraProyeccion.mes}`;
-        const html = this.generarMensajeHTML(producto);
+        // Generar asunto más específico
+        const nivelUrgencia = primeraProyeccion.tiempo_cobertura <= 5 ? 'URGENTE' : 'CRÍTICO';
+        const subject = `[${nivelUrgencia}] ${producto.DESCRIPCION} - Stock bajo en ${primeraProyeccion.mes} (${Math.round(primeraProyeccion.tiempo_cobertura)} días)`;
 
+        const html = this.generarMensajeHTML(producto);
         const result = await this.sendEmail(email, subject, html);
 
         if (result.success && !isManual) {
             this.lastSentDates.set(producto.CODIGO, hoy);
         }
 
-        return result;
+        return {
+            ...result,
+            urgency: nivelUrgencia.toLowerCase(),
+            details: {
+                productCode: producto.CODIGO,
+                coverageDays: Math.round(primeraProyeccion.tiempo_cobertura),
+                deficit: primeraProyeccion.deficit,
+                unitsToOrder: primeraProyeccion.unidades_a_pedir,
+                boxesToOrder: primeraProyeccion.cajas_a_pedir,
+            },
+        };
     }
 }
 

@@ -3486,7 +3486,7 @@ const Dashboard = () => {
                                                         <tr
                                                             key={globalIndex}
                                                             className={`border-t border-[#EDEDED] hover:bg-[#EDEDED]/50 ${proyeccion.transitDaysApplied
-                                                                    ? 'bg-[#D1FAE5] border border-2 border-[#15803D]'
+                                                                    ? 'bg-[#D1FAE5] border-2 border-[#15803D]'
                                                                     : ''
                                                                 }`}
                                                         >
