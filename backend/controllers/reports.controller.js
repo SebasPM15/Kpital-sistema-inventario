@@ -20,18 +20,27 @@ export const getReports = async (req, res, next) => {
 export const createReport = async (req, res, next) => {
   try {
     const { filename, url, productId } = req.body;
-    const userId = req.user.id; // Ajusta según tu middleware de auth
+    const userId = req.user?.id; // Asegúrate de que req.user existe
+
+    // Verificar que userId esté presente
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'No se proporcionó un ID de usuario válido en el token' });
+    }
+
+    console.log('Intentando crear reporte con:', { userId, productId, filename, url }); // Log para depuración
+
+    // Verificar que el usuario exista
+    const user = await User.findByPk(userId);
+    if (!user) {
+      console.error(`Usuario con ID ${userId} no encontrado`);
+      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    }
 
     // Verificar que el producto exista
     const product = await Product.findByPk(productId);
     if (!product) {
+      console.error(`Producto con ID ${productId} no encontrado`);
       return res.status(404).json({ success: false, message: 'Producto no encontrado' });
-    }
-
-    // Obtener información del usuario
-    const user = await User.findByPk(userId);
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     }
 
     // Crear el reporte
@@ -61,6 +70,7 @@ Producto Analizado:
 
     return res.status(201).json({ success: true, data: { report, content: reportContent } });
   } catch (err) {
+    console.error('Error en createReport:', err); // Log detallado del error
     next(err);
   }
 };

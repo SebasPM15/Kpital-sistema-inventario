@@ -143,6 +143,7 @@ interface ConfiguracionInventario {
     DIAS_TRANSITO: number; // Nuevo: Configuración días de tránsito
     VERSION_MODELO: string;
     METODO_CALCULO?: string; // Nuevo campo opcional
+    EMAIL_NOTIFICACION?: string; // Agregado para correo de notificación
 }
 
 interface PredictionData {
@@ -2939,6 +2940,7 @@ const Dashboard = () => {
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [notification, setNotification] = useState<string | null>(null);
         const [activeTab, setActiveTab] = useState<'general' | 'grafico' | 'historico'>('general');
+        const [lastProjectionWithTransit, setLastProjectionWithTransit] = useState<Proyeccion | null>(null);
 
         // Pagination state
         const [currentPage, setCurrentPage] = useState(1);
@@ -3046,6 +3048,13 @@ const Dashboard = () => {
             if (selectedPrediction?.data?.PROYECCIONES) {
                 const updatedProjections = calculateProjectionDates(selectedPrediction.data.PROYECCIONES);
                 setProjectionsWithDates(updatedProjections);
+                
+                // Encontrar la última proyección con días de tránsito aplicados
+                const lastWithTransit = [...updatedProjections]
+                    .reverse()
+                    .find(proj => proj.transitDaysApplied);
+                
+                setLastProjectionWithTransit(lastWithTransit || updatedProjections[0] || null);
             }
         }, [selectedPrediction]);
 
@@ -3090,6 +3099,13 @@ const Dashboard = () => {
 
                 setProjectionsWithDates(updatedProjections);
 
+                // Actualizar la última proyección con tránsito
+                const lastWithTransit = [...updatedProjections]
+                    .reverse()
+                    .find(proj => proj.transitDaysApplied);
+                
+                setLastProjectionWithTransit(lastWithTransit || updatedProjections[0] || null);
+
                 // Guardar en localStorage
                 const localKey = `${producto.CODIGO}_${projectionIndex}`;
                 const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
@@ -3123,11 +3139,6 @@ const Dashboard = () => {
                 setIsRefreshing(false);
                 onClose();
             }
-        };
-
-        const handleDownloadPDF = () => {
-            // Implementar lógica de exportación a PDF
-            console.log('Exportar a PDF');
         };
 
         const statusClass = {
@@ -3356,7 +3367,7 @@ const Dashboard = () => {
                                         <FaTruck className="text-emerald-700" />
                                         <h4 className="text-sm font-semibold">Pedido Sugerido</h4>
                                         <span className="text-xs bg-emerald-100 text-emerald-800 px-2 py-1 rounded-full">
-                                            {firstProjection.mes || 'Primer mes'}
+                                            {lastProjectionWithTransit?.mes || firstProjection.mes || 'Primer mes'}
                                         </span>
                                     </div>
                                     <div className="space-y-4">
@@ -3368,10 +3379,10 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-red-500">Déficit Actual</div>
                                                 <div className="text-lg font-bold text-gray-800">
-                                                    {formatNumber(firstProjection.deficit || 0)} <span className="text-sm font-normal text-gray-500">unidades</span>
+                                                    {formatNumber(lastProjectionWithTransit?.deficit || firstProjection.deficit || 0)} <span className="text-sm font-normal text-gray-500">unidades</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500">
-                                                    Punto de Reorden: {formatNumber(firstProjection.punto_reorden || producto.PUNTO_REORDEN)}
+                                                    Punto de Reorden: {formatNumber(lastProjectionWithTransit?.punto_reorden || firstProjection.punto_reorden || producto.PUNTO_REORDEN)}
                                                 </div>
                                             </div>
                                         </div>
@@ -3384,7 +3395,7 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-amber-600">Cajas a Pedir</div>
                                                 <div className="text-xl font-bold text-gray-800">
-                                                    {firstProjection.cajas_a_pedir || 0} <span className="text-sm font-normal text-gray-500">cajas</span>
+                                                    {lastProjectionWithTransit?.cajas_a_pedir || firstProjection.cajas_a_pedir || 0} <span className="text-sm font-normal text-gray-500">cajas</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500">
                                                     {producto.UNIDADES_POR_CAJA} unid./caja
@@ -3400,10 +3411,10 @@ const Dashboard = () => {
                                             <div>
                                                 <div className="text-xs text-emerald-600">Unidades a Pedir</div>
                                                 <div className="text-xl font-bold text-gray-800">
-                                                    {formatNumber(firstProjection.unidades_a_pedir || 0)} <span className="text-sm font-normal text-gray-500">unidades</span>
+                                                    {formatNumber(lastProjectionWithTransit?.unidades_a_pedir || firstProjection.unidades_a_pedir || 0)} <span className="text-sm font-normal text-gray-500">unidades</span>
                                                 </div>
                                                 <div className="text-xs text-slate-500">
-                                                    {firstProjection.accion_requerida || 'Stock suficiente'}
+                                                    {lastProjectionWithTransit?.accion_requerida || firstProjection.accion_requerida || 'Stock suficiente'}
                                                 </div>
                                             </div>
                                         </div>
@@ -3418,7 +3429,7 @@ const Dashboard = () => {
                                                 <div>
                                                     <div className="text-xs text-blue-600">Solicitar antes de</div>
                                                     <div className="text-sm font-bold text-gray-800">
-                                                        {firstProjection.fecha_solicitud || 'No aplica'}
+                                                        {lastProjectionWithTransit?.fecha_solicitud || firstProjection.fecha_solicitud || 'No aplica'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -3431,7 +3442,7 @@ const Dashboard = () => {
                                                 <div>
                                                     <div className="text-xs text-purple-600">Llegará aproximadamente</div>
                                                     <div className="text-sm font-bold text-gray-800">
-                                                        {firstProjection.fecha_arribo || 'No aplica'}
+                                                        {lastProjectionWithTransit?.fecha_arribo || firstProjection.fecha_arribo || 'No aplica'}
                                                     </div>
                                                 </div>
                                             </div>
@@ -3444,7 +3455,7 @@ const Dashboard = () => {
                                                 <div>
                                                     <div className="text-xs text-green-600">Fecha Crítica de Reposición</div>
                                                     <div className="text-sm font-bold text-gray-800">
-                                                        {firstProjection.fecha_reposicion || 'No aplica'}
+                                                        {lastProjectionWithTransit?.fecha_reposicion || firstProjection.fecha_reposicion || 'No aplica'}
                                                     </div>
                                                     <div className="text-xs text-slate-500">
                                                         Lead time: {producto.CONFIGURACION.LEAD_TIME_REPOSICION} días
@@ -3455,7 +3466,7 @@ const Dashboard = () => {
 
                                         {/* Nota de Proyección */}
                                         <div className="text-xs text-gray-500 italic pt-2 border-t border-emerald-100">
-                                            Basado en proyección de {firstProjection.fecha_inicio_proyeccion || 'próximo mes'}.
+                                            Basado en proyección de {lastProjectionWithTransit?.fecha_inicio_proyeccion || firstProjection.fecha_inicio_proyeccion || 'próximo mes'}.
                                         </div>
                                     </div>
                                 </div>
