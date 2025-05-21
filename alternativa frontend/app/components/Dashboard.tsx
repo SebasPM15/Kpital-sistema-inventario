@@ -3544,10 +3544,10 @@ const Dashboard = () => {
                                                                     {formatNumber(proyeccion.stock_proyectado)} <span className="text-xs text-[#0074CF]">unid.</span>
                                                                     <div
                                                                         className={`text-xs ${isStockCritical
-                                                                                ? 'text-red-500'
-                                                                                : proyeccion.alerta_stock
-                                                                                    ? 'text-amber-500'
-                                                                                    : 'text-green-500'
+                                                                            ? 'text-red-500'
+                                                                            : proyeccion.alerta_stock
+                                                                                ? 'text-amber-500'
+                                                                                : 'text-green-500'
                                                                             }`}
                                                                     >
                                                                         {isStockCritical
@@ -3747,10 +3747,10 @@ const Dashboard = () => {
                                                                 {variation !== null ? (
                                                                     <span
                                                                         className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-gotham-medium ${variation > 0
-                                                                                ? 'bg-green-100 text-green-800'
-                                                                                : variation < 0
-                                                                                    ? 'bg-red-100 text-red-800'
-                                                                                    : 'bg-[#EDEDED] text-[#001A30]'
+                                                                            ? 'bg-green-100 text-green-800'
+                                                                            : variation < 0
+                                                                                ? 'bg-red-100 text-red-800'
+                                                                                : 'bg-[#EDEDED] text-[#001A30]'
                                                                             }`}
                                                                     >
                                                                         {variation > 0 ? '+' : ''}{formatNumber(variation, 1)}%
@@ -3830,53 +3830,24 @@ const Dashboard = () => {
             try {
                 const response = await axios.post(`${API_URL}/auth/login`, {
                     email,
-                    password
+                    password,
                 });
 
-                const { token, user } = response.data;
+                const { token, user, message } = response.data;
 
-                if (token) {
-                    // Verificar en la base de datos
-                    const verifyResponse = await axios.get(`${API_URL}/auth/email/${email}`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-
-                    const userFromDB = verifyResponse.data;
-
-                    if (!userFromDB || userFromDB.email !== email) {
-                        setError('Usuario no encontrado en la base de datos.');
-                        return;
-                    }
-
-                    // Verificar si hay usuario en localStorage
-                    const userFromLocalStorage = localStorage.getItem('user');
-
-                    if (!userFromLocalStorage) {
-                        // El usuario existe en la BD pero no en el localStorage → lo sincronizamos
-                        localStorage.setItem('user', JSON.stringify(userFromDB));
-                        localStorage.setItem('token', token);
-                        onLogin();
-                        return;
-                    }
-
-                    const parsedLocalUser = JSON.parse(userFromLocalStorage);
-
-                    // Comparar IDs o emails
-                    if (parsedLocalUser.email !== userFromDB.email) {
-                        setError('El usuario en localStorage no coincide con el de la base de datos.');
-                        localStorage.removeItem('user');
-                        localStorage.removeItem('token');
-                        return;
-                    }
-
-                    // Todo bien, continuar
-                    localStorage.setItem('token', token); // Actualizar si hace falta
-                    localStorage.setItem('user', JSON.stringify(userFromDB));
+                if (token && user) {
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('user', JSON.stringify({
+                        id: user.id,
+                        nombre: user.nombre,
+                        email: user.email,
+                        celular: user.celular,
+                    }));
+                    setIsAuthenticated(true);
                     onLogin();
                 } else {
-                    setError('Credenciales inválidas.');
+                    setError(message || 'Credenciales inválidas');
                 }
-
             } catch (err: any) {
                 console.error('Login error:', err);
                 setError(err.response?.data?.message || 'Error al iniciar sesión');
@@ -3885,17 +3856,11 @@ const Dashboard = () => {
             }
         };
 
-
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
                 <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
-                    {/* Header con gradiente corporativo */}
                     <div className="flex flex-col items-center p-6">
-                        <img
-                            src="/Logo_Kpital.jpg"
-                            alt="Logo Kpital"
-                            className="h-16 mb-3 object-contain"
-                        />
+                        <img src="/Logo_Kpital.jpg" alt="Logo Kpital" className="h-16 mb-3 object-contain" />
                         <h1 className="text-2xl font-bold text-[#0074CF]">Iniciar Sesión</h1>
                         <p className="text-[#001A30] mt-1">Accede a tu cuenta de Plannink</p>
                     </div>
@@ -3963,7 +3928,6 @@ const Dashboard = () => {
                                         Recordarme
                                     </label>
                                 </div>
-
                                 <div className="text-sm">
                                     <Link href="/forgot-password" className="font-medium text-[#0074CF] hover:text-[#003268]">
                                         ¿Olvidaste tu contraseña?
@@ -3994,8 +3958,8 @@ const Dashboard = () => {
                                 ¿No tienes una cuenta?{' '}
                                 <button
                                     onClick={() => {
-                                        setShowLogin(false);  // Oculta el formulario de login
-                                        setShowRegister(true); // Muestra el formulario de registro
+                                        setShowLogin(false);
+                                        setShowRegister(true);
                                     }}
                                     className="font-medium text-[#0074CF] hover:text-[#003268]"
                                 >
@@ -4015,17 +3979,18 @@ const Dashboard = () => {
         const [email, setEmail] = useState('');
         const [password, setPassword] = useState('');
         const [celular, setCelular] = useState('');
+        const [verificationCode, setVerificationCode] = useState('');
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState('');
         const [success, setSuccess] = useState(false);
+        const [showVerification, setShowVerification] = useState(false);
         const router = useRouter();
 
-        const handleSubmit = async (e: React.FormEvent) => {
+        const handleRegister = async (e: React.FormEvent) => {
             e.preventDefault();
             setLoading(true);
             setError('');
 
-            // Validación básica
             if (!nombre || !email || !password || !celular) {
                 setError('Todos los campos son requeridos');
                 setLoading(false);
@@ -4049,20 +4014,10 @@ const Dashboard = () => {
                     nombre,
                     email,
                     password,
-                    celular
+                    celular,
                 });
 
-                if (response.data.token) {
-                    setSuccess(true);
-                    // Guardar token y usuario
-                    localStorage.setItem('token', response.data.token);
-                    localStorage.setItem('user', JSON.stringify(response.data.user));
-
-                    // Redirigir después de 2 segundos
-                    setTimeout(() => {
-                        onRegister();
-                    }, 2000);
-                }
+                setShowVerification(true);
             } catch (err: any) {
                 console.error('Register error:', err);
                 setError(err.response?.data?.message || 'Error al registrar usuario');
@@ -4071,16 +4026,62 @@ const Dashboard = () => {
             }
         };
 
+        const handleVerify = async (e: React.FormEvent) => {
+            e.preventDefault();
+            setLoading(true);
+            setError('');
+
+            try {
+                const response = await axios.post(`${API_URL}/auth/verify`, {
+                    email,
+                    verificationCode,
+                });
+
+                const { token, user } = response.data;
+
+                if (token && user) {
+                    localStorage.setItem('token', token);
+                    localStorage.setItem('user', JSON.stringify({
+                        id: user.id,
+                        nombre: user.nombre,
+                        email: user.email,
+                        celular: user.celular,
+                    }));
+                    setSuccess(true);
+                    setTimeout(() => {
+                        setIsAuthenticated(true);
+                        onRegister();
+                    }, 2000);
+                }
+            } catch (err: any) {
+                console.error('Verification error:', err);
+                setError(err.response?.data?.message || 'Error al verificar el código');
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        const handleResendCode = async () => {
+            setLoading(true);
+            setError('');
+
+            try {
+                await axios.post(`${API_URL}/auth/resend-verification`, { email });
+                setError(''); // Limpiar errores previos
+                alert('Se ha reenviado el código de verificación a tu correo');
+            } catch (err: any) {
+                console.error('Resend code error:', err);
+                setError(err.response?.data?.message || 'Error al reenviar el código');
+            } finally {
+                setLoading(false);
+            }
+        };
+
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
                 <div className="w-full max-w-md bg-white rounded-xl shadow-lg overflow-hidden">
-                    {/* Header con gradiente corporativo */}
                     <div className="flex flex-col items-center p-6">
-                        <img
-                            src="/Logo_Kpital.jpg"
-                            alt="Logo Kpital"
-                            className="h-16 mb-3 object-contain"
-                        />
+                        <img src="/Logo_Kpital.jpg" alt="Logo Kpital" className="h-16 mb-3 object-contain" />
                         <h1 className="text-2xl font-bold text-[#0074CF]">Crear Cuenta</h1>
                         <p className="text-[#001A30] mt-1">Únete a Plannink</p>
                     </div>
@@ -4105,8 +4106,54 @@ const Dashboard = () => {
                                     Serás redirigido al dashboard...
                                 </p>
                             </div>
+                        ) : showVerification ? (
+                            <form onSubmit={handleVerify} className="space-y-6">
+                                <div>
+                                    <label htmlFor="verificationCode" className="block text-sm font-medium text-[#001A30] mb-1">
+                                        Código de Verificación
+                                    </label>
+                                    <input
+                                        id="verificationCode"
+                                        name="verificationCode"
+                                        type="text"
+                                        required
+                                        value={verificationCode}
+                                        onChange={(e) => setVerificationCode(e.target.value)}
+                                        className="w-full px-4 py-3 bg-[#F8F9FA] text-[#001A30] border border-[#EDEDED] rounded-lg focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] outline-none transition"
+                                        placeholder="Ingresa el código"
+                                    />
+                                </div>
+
+                                <div>
+                                    <button
+                                        type="submit"
+                                        disabled={loading}
+                                        className="w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-white bg-gradient-to-r from-[#0074CF] to-[#003268] hover:from-[#0060b0] hover:to-[#002550] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00B0F0] transition-all"
+                                    >
+                                        {loading ? (
+                                            <>
+                                                <FaSpinner className="animate-spin mr-2" />
+                                                Verificando...
+                                            </>
+                                        ) : (
+                                            'Verificar Código'
+                                        )}
+                                    </button>
+                                </div>
+
+                                <div className="text-center">
+                                    <button
+                                        type="button"
+                                        onClick={handleResendCode}
+                                        disabled={loading}
+                                        className="text-sm font-medium text-[#0074CF] hover:text-[#003268]"
+                                    >
+                                        Reenviar código
+                                    </button>
+                                </div>
+                            </form>
                         ) : (
-                            <form onSubmit={handleSubmit} className="space-y-6">
+                            <form onSubmit={handleRegister} className="space-y-6">
                                 <div>
                                     <label htmlFor="nombre" className="block text-sm font-medium text-[#001A30] mb-1">
                                         Nombre Completo
@@ -4218,8 +4265,8 @@ const Dashboard = () => {
                                 ¿Ya tienes una cuenta?{' '}
                                 <button
                                     onClick={() => {
-                                        setShowLogin(true);  // Oculta el formulario de login
-                                        setShowRegister(false); // Muestra el formulario de registro
+                                        setShowLogin(true);
+                                        setShowRegister(false);
                                     }}
                                     className="font-medium text-[#0074CF] hover:text-[#003268]"
                                 >
@@ -4233,12 +4280,23 @@ const Dashboard = () => {
         );
     };
 
-    const handleLogout = () => {
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
-        setIsAuthenticated(false); // Actualizar estado de autenticación
-        setShowLogin(true);
-        setShowRegister(false);
+    const handleLogout = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            if (token) {
+                await axios.post(`${API_URL}/auth/logout`, {}, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+            }
+        } catch (err) {
+            console.error('Logout error:', err);
+        } finally {
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+            setIsAuthenticated(false);
+            setShowLogin(true);
+            setShowRegister(false);
+        }
     };
 
 

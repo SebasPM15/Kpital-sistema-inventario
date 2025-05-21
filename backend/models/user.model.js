@@ -1,4 +1,3 @@
-// src/models/User.js
 import { DataTypes } from 'sequelize';
 import sequelize from '../config/db.js';
 
@@ -13,7 +12,7 @@ const User = sequelize.define('User', {
         allowNull: false,
     },
     celular: {
-        type: DataTypes.STRING(10),
+        type: DataTypes.STRING,
         allowNull: false,
     },
     email: {
@@ -22,10 +21,27 @@ const User = sequelize.define('User', {
         unique: true,
         validate: { isEmail: true }
     },
-    password: {
+    password_hash: {
         type: DataTypes.STRING,
         allowNull: false,
     },
+    verification_code: {
+        type: DataTypes.STRING(6),
+        allowNull: true,
+    },
+    is_verified: {
+        type: DataTypes.BOOLEAN,
+        defaultValue: false,
+        allowNull: false,
+    },
+    verification_code_expires: {
+        type: DataTypes.DATE,
+        allowNull: true
+    },
+}, {
+    tableName: 'users',
+    timestamps: true,
+    underscored: true,
 });
 
 export default User;

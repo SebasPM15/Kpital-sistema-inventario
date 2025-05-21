@@ -45,46 +45,10 @@ app.use(morgan('combined', { stream: logger.stream }));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Función mejorada para sincronizar la base de datos
-const syncDatabase = async () => {
-    try {
-        const syncOptions = {
-            force: process.env.NODE_ENV === 'development' ? false : false,
-            alter: process.env.NODE_ENV === 'development' ? true : false
-        };
-        await sequelize.sync(syncOptions);
-        logger.info('✅ Base de datos sincronizada correctamente');
-        await User.findOne({ limit: 1 });
-        logger.info('✅ Modelo User verificado correctamente');
-    } catch (error) {
-        logger.error('❌ Error al sincronizar la base de datos:', error);
-    }
-};
-
-// Función mejorada para probar la conexión a la base de datos
-export const testDBConnection = async () => {
-    let retries = 5;
-    const delay = 5000; // 5 segundos entre reintentos
-    
-    while (retries > 0) {
-        try {
-            await sequelize.authenticate();
-            logger.info('✅ Conexión con la base de datos establecida correctamente.');
-            await syncDatabase(); // Sincroniza después de conectar
-            return true;
-        } catch (error) {
-            retries--;
-            logger.error(`❌ Error de conexión a la base de datos (${retries} reintentos restantes):`, error.message);
-            
-            if (retries === 0) {
-                logger.error('❌ No se pudo conectar a la base de datos después de varios intentos');
-                return false;
-            }
-            
-            await new Promise(resolve => setTimeout(resolve, delay));
-        }
-    }
-};
+// Conexión a la base de datos
+sequelize.sync({ alter: true })
+    .then(() => console.log('✅ Base de datos conectada y sincronizada'))
+    .catch(err => console.error('❌ Error de conexión a la DB:', err));
 
 // Rutas
 app.use('/api/auth', authRoutes);
@@ -118,7 +82,7 @@ app.get('/health', healthResponse);
 app.get('/api/health', healthResponse);
 
 // Manejo de errores
-app.use((req, res, next) => {
+app.use((req, res) => {
     handleHttpError(res, 'NOT_FOUND', new Error(`Ruta no encontrada: ${req.originalUrl}`), 404);
 });
 
@@ -127,31 +91,9 @@ app.use((err, req, res, next) => {
     handleHttpError(res, 'INTERNAL_SERVER_ERROR', err, 500);
 });
 
-// Función para iniciar el servidor
-export const startServer = async () => {
-    try {
-        const dbConnected = await testDBConnection();
-        
-        if (!dbConnected && process.env.NODE_ENV === 'production') {
-            throw new Error('No se pudo conectar a la base de datos');
-        }
-        
-        const server = app.listen(PORT, HOST, () => {
-            logger.info(`🚀 Servidor corriendo en http://${HOST}:${PORT}`);
-            logger.info(`📊 Métricas disponibles en http://${HOST}:${PORT}/metrics`);
-            logger.info(`🩺 Health check en http://${HOST}:${PORT}/health`);
-        });
-        
-        return server;
-    } catch (error) {
-        logger.error('❌ Error al iniciar el servidor:', error);
-        process.exit(1);
-    }
-};
-
-// Iniciar solo si no estamos en entorno de testing
-if (process.env.NODE_ENV !== 'test') {
-    startServer();
-}
+// Iniciar servidor
+app.listen(PORT, () => {
+    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
+});
 
 export default app;

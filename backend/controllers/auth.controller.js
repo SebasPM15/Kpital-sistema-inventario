@@ -1,6 +1,4 @@
-import bcrypt from 'bcrypt';
-import User from '../models/user.model.js'; // asegúrate que esté correctamente exportado
-import generateToken from '../utils/generateToken.js';
+import AuthService from '../services/authService.js';
 import { handleHttpError } from '../utils/errorHandler.js';
 
 // Registro
@@ -8,45 +6,75 @@ export const register = async (req, res) => {
     try {
         const { nombre, email, password, celular } = req.body;
 
+        // Validar que todos los campos requeridos estén presentes
         if (!nombre || !email || !password || !celular) {
             return handleHttpError(res, 'BAD_REQUEST', new Error('Todos los campos son requeridos'), 400);
         }
 
+        // Validar formato básico del email
         if (!email.includes('@')) {
             return handleHttpError(res, 'INVALID_EMAIL', new Error('Email inválido'), 400);
         }
 
-        if (!/^\d{10}$/.test(celular)) {
-            return handleHttpError(res, 'INVALID_PHONE', new Error('El número de celular debe tener 10 dígitos'), 400);
-        }
-
-        const existingUser = await User.findOne({ where: { email } });
-        if (existingUser) {
-            return handleHttpError(res, 'EMAIL_EXISTS', new Error('El correo ya está registrado'), 409);
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const newUser = await User.create({
-            nombre,
-            email,
-            password: hashedPassword,
-            celular
-        });
-
-        const token = generateToken(newUser.id, newUser.email);
+        // Llamar al servicio para registrar el usuario
+        const { user, message } = await AuthService.register(nombre, email, password, celular);
 
         res.status(201).json({
-            message: 'Usuario registrado exitosamente',
+            message,
             user: {
-                id: newUser.id,
-                nombre: newUser.nombre,
-                email: newUser.email,
-                celular: newUser.celular
+                id: user.id,
+                nombre: user.nombre,
+                email: user.email,
+                celular: user.celular
+            }
+        });
+    } catch (error) {
+        handleHttpError(res, 'REGISTER_ERROR', error, error.status || 500);
+    }
+};
+
+// Reenviar código de verificación
+export const resendVerificationCode = async (req, res) => {
+    try {
+        const { email } = req.body;
+
+        // Validar que el email esté presente
+        if (!email) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Email requerido'), 400);
+        }
+
+        // Llamar al servicio para reenviar el código
+        const { message } = await AuthService.resendVerificationCode(email);
+        res.status(200).json({ message });
+    } catch (error) {
+        handleHttpError(res, 'RESEND_CODE_ERROR', error, error.status || 500);
+    }
+};
+
+// Verificar registro
+export const verifyRegistration = async (req, res) => {
+    try {
+        const { email, verificationCode } = req.body;
+
+        // Validar que los campos requeridos estén presentes
+        if (!email || !verificationCode) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Email y código de verificación requeridos'), 400);
+        }
+
+        // Llamar al servicio para verificar el registro
+        const { user, token } = await AuthService.verifyRegistration(email, verificationCode);
+        res.status(200).json({
+            message: 'Usuario verificado exitosamente',
+            user: {
+                id: user.id,
+                nombre: user.nombre,
+                email: user.email,
+                celular: user.celular
             },
             token
         });
     } catch (error) {
-        handleHttpError(res, 'REGISTER_ERROR', error, 500);
+        handleHttpError(res, 'VERIFY_ERROR', error, error.status || 500);
     }
 };
 
@@ -55,83 +83,38 @@ export const login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
+        // Validar que los campos requeridos estén presentes
         if (!email || !password) {
             return handleHttpError(res, 'BAD_REQUEST', new Error('Email y contraseña requeridos'), 400);
         }
 
-        const user = await User.findOne({ where: { email } });
-
-        if (!user) {
-            return handleHttpError(res, 'USER_NOT_FOUND', new Error('Usuario no encontrado'), 404);
-        }
-
-        const isMatch = await bcrypt.compare(password, user.password);
-        if (!isMatch) {
-            return handleHttpError(res, 'INVALID_CREDENTIALS', new Error('Contraseña incorrecta'), 401);
-        }
-
-        const token = generateToken(user.id, user.email);
-
+        // Llamar al servicio para iniciar sesión
+        const { user, token } = await AuthService.login(email, password);
         res.status(200).json({
             message: 'Login exitoso',
             user: {
                 id: user.id,
                 nombre: user.nombre,
-                email: user.email
+                email: user.email,
+                celular: user.celular
             },
             token
         });
     } catch (error) {
-        handleHttpError(res, 'LOGIN_ERROR', error, 500);
+        handleHttpError(res, 'LOGIN_ERROR', error, error.status || 500);
     }
 };
 
-// Obtener usuario por ID
-export const getUser = async (req, res) => {
+export const logout = async (req, res) => {
     try {
-        const { id } = req.params;
-        const user = await User.findByPk(id, {
-            attributes: { exclude: ['password'] }
-        });
-
-        if (!user) {
-            return handleHttpError(res, 'USER_NOT_FOUND', new Error('Usuario no encontrado'), 404);
+        const token = req.headers.authorization?.split('Bearer ')[1];
+        if (!token) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Token requerido'), 400);
         }
 
-        res.status(200).json(user);
+        const { message } = await AuthService.logout(token);
+        res.status(200).json({ message });
     } catch (error) {
-        handleHttpError(res, 'GET_USER_ERROR', error, 500);
-    }
-};
-
-// Obtener usuario por Email
-export const getUserByEmailController = async (req, res) => {
-    try {
-        const { email } = req.params;
-        const user = await User.findOne({
-            where: { email },
-            attributes: { exclude: ['password'] }
-        });
-
-        if (!user) {
-            return handleHttpError(res, 'USER_NOT_FOUND', new Error('Usuario no encontrado'), 404);
-        }
-
-        res.status(200).json(user);
-    } catch (error) {
-        handleHttpError(res, 'GET_USER_BY_EMAIL_ERROR', error, 500);
-    }
-};
-
-// Obtener todos los usuarios
-export const getAllUsers = async (req, res) => {
-    try {
-        const users = await User.findAll({
-            attributes: { exclude: ['password'] }
-        });
-
-        res.status(200).json(users);
-    } catch (error) {
-        handleHttpError(res, 'GET_ALL_USERS_ERROR', error, 500);
+        handleHttpError(res, 'LOGOUT_ERROR', error, error.status || 500);
     }
 };
