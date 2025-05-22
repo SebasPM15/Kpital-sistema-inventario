@@ -40,6 +40,7 @@ import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { toast } from 'react-toastify';
 import ProjectionsPagination from './ProjectionsPagination';
+import ForgotPasswordForm from './ForgotPasswordForm';
 
 Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
@@ -169,8 +170,27 @@ interface VariationChartProps {
     };
 }
 
+interface InventoryChartProps {
+  data: Proyeccion[];
+  stockActual: number;
+}
+
 // Constantes
 const ITEMS_PER_PAGE = 12;
+
+// Función para calcular días de cobertura antes de la alerta roja
+const calculateDaysUntilRedAlert = (stockTotal: number, consumoDiario: number, stockSeguridad: number): number => {
+    if (consumoDiario <= 0 || stockTotal < 0 || stockSeguridad < 0) {
+        return 0;
+    }
+    if (stockTotal <= stockSeguridad) {
+        return 0;
+    }
+    const unidadesPorEncima = stockTotal - stockSeguridad;
+    const diasHastaStockSeguridad = unidadesPorEncima / consumoDiario;
+    const diasCompletos = Math.floor(diasHastaStockSeguridad);
+    return diasCompletos > 0 ? diasCompletos : 0;
+};
 
 const Dashboard = () => {
     // Estados
@@ -1710,6 +1730,20 @@ const Dashboard = () => {
         }
     };
 
+    // Función para calcular días laborables entre dos fechas (lunes a viernes)
+const getBusinessDays = (startDate: Date, endDate: Date): number => {
+  let count = 0;
+  const currentDate = new Date(startDate);
+  while (currentDate <= endDate) {
+    const dayOfWeek = currentDate.getDay();
+    if (dayOfWeek !== 0 && dayOfWeek !== 6) { // Excluir domingo (0) y sábado (6)
+      count++;
+    }
+    currentDate.setDate(currentDate.getDate() + 1);
+  }
+  return count;
+};
+
     const renderStatusMessage = (status: string) => {
         switch (status) {
             case 'danger':
@@ -1943,244 +1977,264 @@ const Dashboard = () => {
         </div>
     );
 
-    const InventoryChart = ({ data, stockActual }: { data: Proyeccion[], stockActual: number }) => {
-        const [chartView, setChartView] = useState<'semanal' | 'mensual'>('mensual');
+const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
+  const [chartView, setChartView] = useState<'semanal' | 'mensual'>('mensual');
 
-        // Procesar datos para el gráfico
-        const monthlyData = data.map(proyeccion => ({
-            periodo: formatMes(proyeccion.mes),
-            stock: proyeccion.stock_proyectado,
-            min: proyeccion.punto_reorden,
-            seguridad: proyeccion.stock_seguridad,
-            consumo: proyeccion.consumo_mensual,
-            fechaReposicion: proyeccion.fecha_reposicion
-        }));
+  // Encontrar la última proyección con transitDaysApplied: true
+  const lastTransitIndex = [...data].reverse().findIndex(proj => proj.transitDaysApplied === true);
+  const lastIndex = lastTransitIndex === -1 ? data.length : data.length - lastTransitIndex;
+  
+  // Filtrar datos hasta la última proyección con transitDaysApplied
+  const filteredData = data.slice(0, lastIndex);
 
-        // Convertir datos mensuales a semanas
-        const weeklyData = data.flatMap(proyeccion => {
-            const semanas = [];
-            const consumoSemanal = proyeccion.consumo_mensual / 4;
-            let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
+  // Procesar datos para el gráfico mensual
+  const monthlyData = filteredData.map(proyeccion => ({
+    periodo: formatMes(proyeccion.mes),
+    stock: proyeccion.stock_proyectado,
+    min: proyeccion.punto_reorden,
+    seguridad: proyeccion.stock_seguridad,
+    consumo: proyeccion.consumo_mensual,
+    fechaReposicion: proyeccion.fecha_reposicion
+  }));
 
-            for (let i = 1; i <= 4; i++) {
-                stock -= consumoSemanal;
-                semanas.push({
-                    semana: `Sem ${i} ${formatMes(proyeccion.mes)}`,
-                    stock: Math.max(0, stock),
-                    min: proyeccion.punto_reorden,
-                    seguridad: proyeccion.stock_seguridad,
-                    consumo: consumoSemanal
-                });
-            }
-            return semanas;
-        });
+  // Convertir datos mensuales a semanas basadas en días laborables
+  const weeklyData = filteredData.flatMap(proyeccion => {
+    const semanas = [];
+    
+    // Calcular días laborables entre fecha_solicitud y fecha_arribo
+    let numDiasLaborables = 20; // Fallback: 4 semanas de 5 días laborables
+    let consumoDiario = proyeccion.consumo_mensual / 20; // Fallback: asumir 20 días laborables
+    
+    if (proyeccion.fecha_solicitud && proyeccion.fecha_arribo) {
+      const fechaInicio = new Date(proyeccion.fecha_solicitud);
+      const fechaFin = new Date(proyeccion.fecha_arribo);
+      if (!isNaN(fechaInicio.getTime()) && !isNaN(fechaFin.getTime()) && fechaFin >= fechaInicio) {
+        numDiasLaborables = getBusinessDays(fechaInicio, fechaFin);
+        consumoDiario = numDiasLaborables > 0 ? proyeccion.consumo_mensual / numDiasLaborables : proyeccion.consumo_mensual / 20;
+      }
+    }
 
-        return (
-            <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm">
-                <div className="flex items-center justify-between mb-4">
-                    <h4 className="text-lg font-gotham-bold flex items-center gap-2 text-[#001A30]">
-                        <FaChartLine className="text-[#0074CF]" />
-                        Proyección de Stock - {chartView === 'semanal' ? 'Semanal' : 'Mensual'}
-                    </h4>
-                    <select
-                        value={chartView}
-                        onChange={(e) => setChartView(e.target.value as 'semanal' | 'mensual')}
-                        className="px-3 py-1 border rounded-lg text-sm bg-white text-[#001A30] border-[#EDEDED] focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] font-gotham-regular"
-                    >
-                        <option value="mensual">Vista Mensual</option>
-                        <option value="semanal">Vista Semanal</option>
-                    </select>
-                </div>
+    // Calcular el número de semanas (5 días laborables por semana)
+    const numSemanas = Math.ceil(numDiasLaborables / 5);
+    let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
 
-                {/* Instrucciones del gráfico */}
-                <div className="mb-4 p-3 bg-[#EDEDED] rounded-lg border border-[#0074CF]/20">
-                    <h5 className="text-sm font-gotham-bold text-[#001A30] mb-2 flex items-center gap-2">
-                        <FaInfoCircle className="text-[#00B0F0]" />
-                        Cómo interpretar este gráfico
-                    </h5>
-                    <ul className="text-xs font-gotham-light text-[#001A30] space-y-1">
-                        <li className="flex items-start gap-2">
-                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#0074CF] flex-shrink-0"></span>
-                            <span className="text-sm">
-                                <span className="font-gotham-medium">Área Azul:</span> Stock proyectado
-                            </span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#EF4444] flex-shrink-0"></span>
-                            <span className="text-sm">
-                                <span className="font-gotham-medium">Línea Roja:</span> Punto de reorden
-                            </span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#001A30] flex-shrink-0"></span>
-                            <span className="text-sm">
-                                <span className="font-gotham-medium">Línea Azul Oscuro:</span> Stock de seguridad
-                            </span>
-                        </li>
-                        <li className="flex items-start gap-2">
-                            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#10B981] flex-shrink-0"></span>
-                            <span className="text-sm">
-                                <span className="font-gotham-medium">Línea Verde:</span> Consumo {chartView === 'semanal' ? 'semanal' : 'mensual'}
-                            </span>
-                        </li>
-                    </ul>
-                </div>
+    for (let i = 1; i <= numSemanas; i++) {
+      // Ajustar los días laborables para la última semana si es parcial
+      const diasEnSemana = i === numSemanas && numDiasLaborables % 5 !== 0 ? numDiasLaborables % 5 : 5;
+      const consumoAjustado = consumoDiario * diasEnSemana;
+      stock -= consumoAjustado;
+      
+      semanas.push({
+        semana: `Sem ${i} ${formatMes(proyeccion.mes)}`,
+        stock: Math.max(0, stock),
+        min: proyeccion.punto_reorden,
+        seguridad: proyeccion.stock_seguridad,
+        consumo: consumoAjustado
+      });
+    }
+    return semanas;
+  });
 
-                <div className="h-96">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <LineChart
-                            data={chartView === 'semanal' ? weeklyData : monthlyData}
-                            margin={{ top: 20, right: 20, left: 30, bottom: 80 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" opacity={0.5} />
-                            <XAxis
-                                dataKey={chartView === 'semanal' ? 'semana' : 'periodo'}
-                                angle={-45}
-                                textAnchor="end"
-                                tick={{
-                                    fontSize: 12,
-                                    fill: "#001A30",
-                                    fontFamily: 'Gotham Regular'
-                                }}
-                                tickMargin={15}
-                                interval={0}
-                                height={60}
-                            />
-                            <YAxis
-                                tick={{
-                                    fill: "#001A30",
-                                    fontSize: 12,
-                                    fontFamily: 'Gotham Regular'
-                                }}
-                                label={{
-                                    value: 'Unidades',
-                                    angle: -90,
-                                    position: 'insideLeft',
-                                    fill: "#001A30",
-                                    style: {
-                                        fontSize: 13,
-                                        fontFamily: 'Gotham Medium'
-                                    }
-                                }}
-                            />
-                            <Tooltip
-                                formatter={(value: number, name: string) => {
-                                    const formattedValue = formatNumber(Number(value));
-                                    const metricNames = {
-                                        stock: 'Stock Proyectado',
-                                        min: 'Punto de Reorden',
-                                        seguridad: 'Stock de Seguridad',
-                                        consumo: chartView === 'semanal' ? 'Consumo Semanal' : 'Consumo Mensual'
-                                    };
+  return (
+    <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h4 className="text-lg font-gotham-bold flex items-center gap-2 text-[#001A30]">
+          <FaChartLine className="text-[#0074CF]" />
+          Proyección de Stock - {chartView === 'semanal' ? 'Semanal' : 'Por Pedidos'}
+        </h4>
+        <select
+          value={chartView}
+          onChange={(e) => setChartView(e.target.value as 'semanal' | 'mensual')}
+          className="px-3 py-1 border rounded-lg text-sm bg-white text-[#001A30] border-[#EDEDED] focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] font-gotham-regular"
+        >
+          <option value="mensual">Vista Por Pedidos</option>
+          <option value="semanal">Vista Semanal</option>
+        </select>
+      </div>
 
-                                    return [
-                                        <span className="font-gotham-medium">{formattedValue} unidades</span>,
-                                        <span className="font-gotham-regular">{metricNames[name as keyof typeof metricNames] || name}</span>
-                                    ];
-                                }}
-                                labelFormatter={(label) => (
-                                    <span className="font-gotham-medium">
-                                        {chartView === 'semanal' ? 'Semana:' : 'Mes:'} {label}
-                                    </span>
-                                )}
-                                contentStyle={{
-                                    backgroundColor: '#FFFFFF',
-                                    border: '1px solid #EDEDED',
-                                    borderRadius: '6px',
-                                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                                    color: '#001A30',
-                                    fontFamily: 'Gotham Regular',
-                                    fontSize: '13px',
-                                    padding: '8px 12px'
-                                }}
-                            />
-                            <Legend
-                                wrapperStyle={{
-                                    paddingTop: 10,
-                                    paddingBottom: 20,
-                                    fontSize: '13px',
-                                    color: '#001A30',
-                                    fontFamily: 'Gotham Medium'
-                                }}
-                                layout="horizontal"
-                                verticalAlign="top"
-                                align="center"
-                            />
+      <div className="mb-4 p-3 bg-[#EDEDED] rounded-lg border border-[#0074CF]/20">
+        <h5 className="text-sm font-gotham-bold text-[#001A30] mb-2 flex items-center gap-2">
+          <FaInfoCircle className="text-[#00B0F0]" />
+          Cómo interpretar este gráfico
+        </h5>
+        <ul className="text-xs font-gotham-light text-[#001A30] space-y-1">
+          <li className="flex items-start gap-2">
+            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#0074CF] flex-shrink-0"></span>
+            <span className="text-sm">
+              <span className="font-gotham-medium">Área Azul:</span> Stock proyectado
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#EF4444] flex-shrink-0"></span>
+            <span className="text-sm">
+              <span className="font-gotham-medium">Línea Roja:</span> Punto de reorden
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#001A30] flex-shrink-0"></span>
+            <span className="text-sm">
+              <span className="font-gotham-medium">Línea Azul Oscuro:</span> Stock de seguridad
+            </span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#10B981] flex-shrink-0"></span>
+            <span className="text-sm">
+              <span className="font-gotham-medium">Línea Verde:</span> Consumo {chartView === 'semanal' ? 'semanal' : 'durante los días de Tránsito'}
+            </span>
+          </li>
+        </ul>
+      </div>
 
-                            {/* Stock Proyectado */}
-                            <Line
-                                type="monotone"
-                                dataKey="stock"
-                                stroke="#0074CF"
-                                strokeWidth={3}
-                                name="Stock Proyectado"
-                                dot={{ fill: '#0074CF', strokeWidth: 1, r: 5 }}
-                                activeDot={{ r: 7 }}
-                            />
-                            <Area
-                                type="monotone"
-                                dataKey="stock"
-                                fill="#00B0F0"
-                                fillOpacity={0.15}
-                                stroke="none"
-                            />
+      <div className="h-96">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart
+            data={chartView === 'semanal' ? weeklyData : monthlyData}
+            margin={{ top: 20, right: 20, left: 30, bottom: 80 }}
+          >
+            <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" opacity={0.5} />
+            <XAxis
+              dataKey={chartView === 'semanal' ? 'semana' : 'periodo'}
+              angle={-45}
+              textAnchor="end"
+              tick={{
+                fontSize: 12,
+                fill: "#001A30",
+                fontFamily: 'Gotham Regular'
+              }}
+              tickMargin={15}
+              interval={0}
+              height={60}
+            />
+            <YAxis
+              tick={{
+                fill: "#001A30",
+                fontSize: 12,
+                fontFamily: 'Gotham Regular'
+              }}
+              label={{
+                value: 'Unidades',
+                angle: -90,
+                position: 'insideLeft',
+                fill: "#001A30",
+                style: {
+                  fontSize: 13,
+                  fontFamily: 'Gotham Medium'
+                }
+              }}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => {
+                const formattedValue = formatNumber(Number(value));
+                const metricNames = {
+                  stock: 'Stock Proyectado',
+                  min: 'Punto de Reorden',
+                  seguridad: 'Stock de Seguridad',
+                  consumo: chartView === 'semanal' ? 'Consumo Semanal' : 'Consumo'
+                };
 
-                            {/* Punto de Reorden */}
-                            <Line
-                                type="monotone"
-                                dataKey="min"
-                                stroke="#EF4444"
-                                strokeWidth={2.5}
-                                strokeDasharray="5 3"
-                                name="Punto de Reorden"
-                                dot={{ fill: '#EF4444', strokeWidth: 1, r: 4 }}
-                            />
+                return [
+                  <span className="font-gotham-medium">{formattedValue} unidades</span>,
+                  <span className="font-gotham-regular">{metricNames[name as keyof typeof metricNames] || name}</span>
+                ];
+              }}
+              labelFormatter={(label) => (
+                <span className="font-gotham-medium">
+                  {chartView === 'semanal' ? 'Semana:' : 'Mes:'} {label}
+                </span>
+              )}
+              contentStyle={{
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #EDEDED',
+                borderRadius: '6px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                color: '#001A30',
+                fontFamily: 'Gotham Regular',
+                fontSize: '13px',
+                padding: '8px 12px'
+              }}
+            />
+            <Legend
+              wrapperStyle={{
+                paddingTop: 10,
+                paddingBottom: 20,
+                fontSize: '13px',
+                color: '#001A30',
+                fontFamily: 'Gotham Medium'
+              }}
+              layout="horizontal"
+              verticalAlign="top"
+              align="center"
+            />
 
-                            {/* Stock de Seguridad */}
-                            <Line
-                                type="monotone"
-                                dataKey="seguridad"
-                                stroke="#001A30"
-                                strokeWidth={2.5}
-                                name="Stock de Seguridad"
-                                dot={{ fill: '#001A30', strokeWidth: 1, r: 4 }}
-                                strokeDasharray="4 2"
-                            />
+            <Line
+              type="monotone"
+              dataKey="stock"
+              stroke="#0074CF"
+              strokeWidth={3}
+              name="Stock Proyectado"
+              dot={{ fill: '#0074CF', strokeWidth: 1, r: 5 }}
+              activeDot={{ r: 7 }}
+            />
+            <Area
+              type="monotone"
+              dataKey="stock"
+              fill="#00B0F0"
+              fillOpacity={0.15}
+              stroke="none"
+            />
 
-                            {/* Consumo */}
-                            <Line
-                                type="monotone"
-                                dataKey="consumo"
-                                stroke="#10B981"
-                                strokeWidth={2.5}
-                                name={`Consumo ${chartView === 'semanal' ? 'Semanal' : 'Mensual'}`}
-                                dot={{ fill: '#10B981', strokeWidth: 1, r: 4 }}
-                                strokeDasharray="3 3"
-                            />
+            <Line
+              type="monotone"
+              dataKey="min"
+              stroke="#EF4444"
+              strokeWidth={2.5}
+              strokeDasharray="5 3"
+              name="Punto de Reorden"
+              dot={{ fill: '#EF4444', strokeWidth: 1, r: 4 }}
+            />
 
-                            {/* Marcador de stock actual */}
-                            {chartView === 'mensual' && monthlyData.length > 0 && (
-                                <ReferenceLine
-                                    x={monthlyData[0].periodo}
-                                    stroke="#003268"
-                                    strokeWidth={2.5}
-                                    strokeDasharray="3 3"
-                                    label={{
-                                        value: `Stock Actual: ${formatNumber(stockActual)}`,
-                                        position: 'top',
-                                        fill: '#003268',
-                                        fontSize: 12,
-                                        fontFamily: 'Gotham Medium',
-                                        offset: 10
-                                    }}
-                                />
-                            )}
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-            </div>
-        );
-    };
+            <Line
+              type="monotone"
+              dataKey="seguridad"
+              stroke="#001A30"
+              strokeWidth={2.5}
+              name="Stock de Seguridad"
+              dot={{ fill: '#001A30', strokeWidth: 1, r: 4 }}
+              strokeDasharray="4 2"
+            />
+
+            <Line
+              type="monotone"
+              dataKey="consumo"
+              stroke="#10B981"
+              strokeWidth={2.5}
+              name={`Consumo ${chartView === 'semanal' ? 'Semanal' : 'Consumo durante los días de Tránsito'}`}
+              dot={{ fill: '#10B981', strokeWidth: 1, r: 4 }}
+              strokeDasharray="3 3"
+            />
+
+            {chartView === 'mensual' && monthlyData.length > 0 && (
+              <ReferenceLine
+                x={monthlyData[0].periodo}
+                stroke="#003268"
+                strokeWidth={2.5}
+                strokeDasharray="3 3"
+                label={{
+                  value: `Stock Actual: ${formatNumber(stockActual)}`,
+                  position: 'top',
+                  fill: '#003268',
+                  fontSize: 12,
+                  fontFamily: 'Gotham Medium',
+                  offset: 10
+                }}
+              />
+            )}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+};
 
     const VariationChart = ({ data, colors = {
         positive: '#10B981', // verde
@@ -2949,15 +3003,24 @@ const Dashboard = () => {
         const startIndex = (currentPage - 1) * itemsPerPage;
         const currentProjections = projectionsWithDates.slice(startIndex, startIndex + itemsPerPage);
 
-        // Función para agregar días laborables
+        // ✅ Función para agregar días hábiles y ajustar si cae en fin de semana
         const addBusinessDays = (startDate: Date, days: number): Date => {
-            let date = new Date(startDate);
-            if (isNaN(date.getTime())) {
-                console.warn('Invalid date in addBusinessDays, using current date');
-                date = new Date();
+            if (isNaN(startDate.getTime())) {
+                console.error('Fecha de inicio inválida en addBusinessDays');
+                return new Date(); // Fallback a fecha actual
             }
 
+            const date = new Date(startDate);
             let addedDays = 0;
+
+            // Si la fecha inicial es fin de semana, avanzamos al próximo lunes
+            if (date.getDay() === 6) { // Sábado
+                date.setDate(date.getDate() + 2);
+            } else if (date.getDay() === 0) { // Domingo
+                date.setDate(date.getDate() + 1);
+            }
+
+            // Agregar días hábiles
             while (addedDays < days) {
                 date.setDate(date.getDate() + 1);
                 if (date.getDay() !== 0 && date.getDay() !== 6) {
@@ -2965,75 +3028,69 @@ const Dashboard = () => {
                 }
             }
 
+            // Asegurar que la fecha final no sea fin de semana
+            if (date.getDay() === 6) { // Sábado
+                date.setDate(date.getDate() + 2);
+            } else if (date.getDay() === 0) { // Domingo
+                date.setDate(date.getDate() + 1);
+            }
+
             return date;
         };
 
-        // Función para calcular fechas basadas en la primera proyección
         const calculateProjectionDates = (projections: Proyeccion[]): Proyeccion[] => {
             try {
                 const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
-                const firstProjection = projections[0];
-
-                // Usar la fecha de inicio de la primera proyección o la fecha actual
-                let baseStartDate = new Date(firstProjection.fecha_inicio_proyeccion || producto.FECHA_INICIO || Date.now());
-                if (isNaN(baseStartDate.getTime())) {
-                    console.warn('Invalid base start date, using current date');
-                    baseStartDate = new Date();
-                }
 
                 return projections.map((proj, index) => {
                     const localKey = `${producto.CODIGO}_${index}`;
-                    const transitDays = proj.dias_transito || producto.CONFIGURACION.DIAS_LABORALES_MES;
-                    const leadTime = producto.CONFIGURACION.LEAD_TIME_REPOSICION;
+                    const transitDays = proj.dias_transito || 7;
 
-                    // Para la primera proyección, usar sus propias fechas si están definidas
-                    let startDate = index === 0 && proj.fecha_inicio_proyeccion
-                        ? new Date(proj.fecha_inicio_proyeccion)
-                        : new Date(baseStartDate);
+                    let fechaSolicitud: Date | null = null;
+                    let fechaArribo: Date | null = null;
 
-                    if (isNaN(startDate.getTime())) {
-                        console.warn(`Invalid start date for projection ${index}, using current date`);
-                        startDate = new Date();
+                    if (
+                        proj.fecha_solicitud &&
+                        !isNaN(new Date(proj.fecha_solicitud).getTime()) &&
+                        proj.fecha_arribo &&
+                        !isNaN(new Date(proj.fecha_arribo).getTime())
+                    ) {
+                        fechaSolicitud = new Date(proj.fecha_solicitud);
+                        fechaArribo = new Date(proj.fecha_arribo);
+                    } else {
+                        let startDate: Date;
+
+                        if (index === 0) {
+                            startDate = proj.fecha_inicio_proyeccion && !isNaN(new Date(proj.fecha_inicio_proyeccion).getTime())
+                                ? new Date(proj.fecha_inicio_proyeccion)
+                                : new Date(producto.FECHA_INICIO || Date.now());
+                        } else {
+                            const prev = projections[index - 1];
+                            startDate = prev.fecha_arribo && !isNaN(new Date(prev.fecha_arribo).getTime())
+                                ? new Date(prev.fecha_arribo)
+                                : new Date(prev.fecha_fin || Date.now());
+                        }
+
+                        // Asegurar que la fecha de solicitud no sea fin de semana
+                        while (startDate.getDay() === 0 || startDate.getDay() === 6) {
+                            startDate.setDate(startDate.getDate() + 1);
+                        }
+
+                        fechaSolicitud = new Date(startDate);
+                        fechaArribo = addBusinessDays(fechaSolicitud, transitDays);
                     }
 
-                    // Calcular fechas clave para la primera proyección
-                    let fechaSolicitud = proj.fecha_solicitud
-                        ? new Date(proj.fecha_solicitud)
-                        : addBusinessDays(startDate, -leadTime - transitDays);
+                    const fechaReposicion = new Date(fechaArribo);
 
-                    let fechaReposicion = proj.fecha_reposicion
-                        ? new Date(proj.fecha_reposicion)
-                        : addBusinessDays(fechaSolicitud, leadTime);
-
-                    let fechaArribo = proj.fecha_arribo
-                        ? new Date(proj.fecha_arribo)
-                        : addBusinessDays(fechaReposicion, transitDays);
-
-                    if (isNaN(fechaSolicitud.getTime()) || isNaN(fechaReposicion.getTime()) || isNaN(fechaArribo.getTime())) {
-                        console.warn(`Invalid calculated dates for projection ${index}, using fallback`);
-                        fechaSolicitud = new Date();
-                        fechaReposicion = addBusinessDays(fechaSolicitud, leadTime);
-                        fechaArribo = addBusinessDays(fechaReposicion, transitDays);
-                    }
-
-                    // Para proyecciones posteriores, avanzar según el período
-                    if (index > 0) {
-                        const prevProjection = projections[index - 1];
-                        startDate = prevProjection.fecha_fin
-                            ? new Date(prevProjection.fecha_fin)
-                            : addBusinessDays(new Date(projections[index - 1].fecha_inicio_proyeccion), producto.CONFIGURACION.DIAS_LABORALES_MES);
-                        fechaSolicitud = addBusinessDays(startDate, -leadTime - transitDays);
-                        fechaReposicion = addBusinessDays(fechaSolicitud, leadTime);
-                        fechaArribo = addBusinessDays(fechaReposicion, transitDays);
-                    }
+                    console.log(`Projection ${index}: solicitud=${fechaSolicitud.toISOString()}, arribo=${fechaArribo.toISOString()}`);
 
                     return {
                         ...proj,
-                        fecha_inicio_proyeccion: startDate.toISOString().split('T')[0],
+                        fecha_inicio_proyeccion: fechaSolicitud.toISOString().split('T')[0],
                         fecha_solicitud: fechaSolicitud.toISOString().split('T')[0],
                         fecha_reposicion: fechaReposicion.toISOString().split('T')[0],
                         fecha_arribo: fechaArribo.toISOString().split('T')[0],
-                        fecha_fin: addBusinessDays(startDate, transitDays).toISOString().split('T')[0],
+                        fecha_fin: fechaArribo.toISOString().split('T')[0],
                         transitDaysApplied: appliedMap[localKey] || proj.transitDaysApplied || false,
                     };
                 });
@@ -3058,78 +3115,123 @@ const Dashboard = () => {
             }
         }, [selectedPrediction]);
 
-        const handleApplyTransitDays = async (projectionIndex: number) => {
-            const days = transitDaysInputs[projectionIndex];
-            if (!days || days <= 0 || !Number.isInteger(days)) {
-                setNotification('Por favor ingrese un número entero positivo de días');
-                setTimeout(() => setNotification(null), 3000);
-                return;
+const handleApplyTransitDays = async (projectionIndex: number) => {
+    const days = transitDaysInputs[projectionIndex];
+    if (!days || days <= 0 || !Number.isInteger(days)) {
+        setNotification('Por favor ingrese un número entero positivo de días');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+    }
+
+    // Obtener la proyección actual y el producto
+    const proyeccion = projectionsWithDates[projectionIndex];
+    if (!proyeccion || !producto) {
+        setNotification('Error: No se encontró la proyección o el producto');
+        setTimeout(() => setNotification(null), 3000);
+        return;
+    }
+
+    // Contar cuántas proyecciones anteriores tienen días de tránsito aplicados
+    const previousProjectionsWithTransit = projectionsWithDates
+        .slice(0, projectionIndex) // Solo las proyecciones anteriores a la actual
+        .filter((proj) => proj.transitDaysApplied).length;
+
+    // Si no hay proyecciones anteriores con días de tránsito, este es el primer pedido
+    const isFirstTransitApplication = previousProjectionsWithTransit === 0;
+
+    // Calcular los días de cobertura disponibles antes de la alerta roja, usando stock_inicial
+    const diasCoberturaRestantes = calculateDaysUntilRedAlert(
+        proyeccion.stock_inicial,
+        producto.CONSUMO_DIARIO,
+        proyeccion.stock_seguridad
+    );
+
+    // Solo aplicar la verificación de la alerta si NO es el primer pedido
+    if (!isFirstTransitApplication && days > diasCoberturaRestantes) {
+        const mensaje = `⚠️ Peligro: Ingresar ${days} días de tránsito excede los ${diasCoberturaRestantes} días de cobertura disponibles. Esto causará una ruptura de stock. Realiza el pedido inmediatamente.`;
+
+        toast.error(mensaje, {
+            position: "top-center", // Cambiado de "top-right" a "top-center"
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: true,
+        });
+        return;
+    }
+
+    // Proceder con la operación
+    setIsApplyingDays(projectionIndex);
+    setIsRefreshing(true);
+    try {
+        const response = await fetch(
+            `${API_URL}/predictions/${producto.CODIGO}/projections/${projectionIndex}/transit-days`,
+            {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
+                },
+                body: JSON.stringify({ days, transitDaysApplied: true }),
             }
+        );
 
-            setIsApplyingDays(projectionIndex);
-            setIsRefreshing(true);
-            try {
-                const response = await fetch(`${API_URL}/predictions/${producto.CODIGO}/projections/${projectionIndex}/transit-days`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                    },
-                    body: JSON.stringify({ days, transitDaysApplied: true }),
-                });
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.message || 'Error al aplicar días de tránsito');
+        }
 
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.message || 'Error al aplicar días de tránsito');
-                }
+        const updatedProduct = await response.json();
+        if (!updatedProduct || !Array.isArray(updatedProduct.PROYECCIONES)) {
+            console.error('Invalid PATCH response:', updatedProduct);
+            setNotification('Error: Respuesta inválida del servidor');
+            setTimeout(() => setNotification(null), 3000);
+            return;
+        }
 
-                const updatedProduct = await response.json();
-                if (!updatedProduct || !Array.isArray(updatedProduct.PROYECCIONES)) {
-                    console.error('Invalid PATCH response:', updatedProduct);
-                    setNotification('Error: Respuesta inválida del servidor');
-                    setTimeout(() => setNotification(null), 3000);
-                    return;
-                }
+        // Recalcular fechas para todas las proyecciones
+        const updatedProjections = calculateProjectionDates(
+            updatedProduct.PROYECCIONES.map((proj: Proyeccion, idx: number) => ({
+                ...proj,
+                transitDaysApplied:
+                    idx === projectionIndex ? true : projectionsWithDates[idx]?.transitDaysApplied ?? false,
+            }))
+        );
 
-                // Recalcular fechas para todas las proyecciones
-                const updatedProjections = calculateProjectionDates(updatedProduct.PROYECCIONES.map((proj: Proyeccion, idx: number) => ({
-                    ...proj,
-                    transitDaysApplied: idx === projectionIndex ? true : projectionsWithDates[idx]?.transitDaysApplied ?? false,
-                })));
+        setProjectionsWithDates(updatedProjections);
 
-                setProjectionsWithDates(updatedProjections);
+        // Actualizar la última proyección con tránsito
+        const lastWithTransit = [...updatedProjections]
+            .reverse()
+            .find((proj) => proj.transitDaysApplied);
 
-                // Actualizar la última proyección con tránsito
-                const lastWithTransit = [...updatedProjections]
-                    .reverse()
-                    .find(proj => proj.transitDaysApplied);
-                
-                setLastProjectionWithTransit(lastWithTransit || updatedProjections[0] || null);
+        setLastProjectionWithTransit(lastWithTransit || updatedProjections[0] || null);
 
-                // Guardar en localStorage
-                const localKey = `${producto.CODIGO}_${projectionIndex}`;
-                const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
-                appliedMap[localKey] = true;
-                localStorage.setItem('transitDaysMap', JSON.stringify(appliedMap));
+        // Guardar en localStorage
+        const localKey = `${producto.CODIGO}_${projectionIndex}`;
+        const appliedMap = JSON.parse(localStorage.getItem('transitDaysMap') || '{}');
+        appliedMap[localKey] = true;
+        localStorage.setItem('transitDaysMap', JSON.stringify(appliedMap));
 
-                // Limpiar el input
-                setTransitDaysInputs((prev) => {
-                    const newInputs = { ...prev };
-                    delete newInputs[projectionIndex];
-                    return newInputs;
-                });
+        // Limpiar el input
+        setTransitDaysInputs((prev) => {
+            const newInputs = { ...prev };
+            delete newInputs[projectionIndex];
+            return newInputs;
+        });
 
-                setNotification(`Días de tránsito (${days}) aplicados correctamente`);
-                setTimeout(() => setNotification(null), 3000);
-            } catch (error) {
-                console.error('Error applying transit days:', error);
-                setNotification('Error al aplicar días de tránsito');
-                setTimeout(() => setNotification(null), 3000);
-            } finally {
-                setIsApplyingDays(null);
-                setIsRefreshing(false);
-            }
-        };
+        setNotification(`Días de tránsito (${days}) aplicados correctamente`);
+        setTimeout(() => setNotification(null), 3000);
+    } catch (error) {
+        console.error('Error applying transit days:', error);
+        setNotification('Error al aplicar días de tránsito');
+        setTimeout(() => setNotification(null), 3000);
+    } finally {
+        setIsApplyingDays(null);
+        setIsRefreshing(false);
+    }
+};
 
         const handleClose = async () => {
             setIsRefreshing(true);
@@ -3832,6 +3934,7 @@ const Dashboard = () => {
         const [password, setPassword] = useState('');
         const [loading, setLoading] = useState(false);
         const [error, setError] = useState('');
+        const [showForgotPassword, setShowForgotPassword] = useState(false);
 
         const handleSubmit = async (e: React.FormEvent) => {
             e.preventDefault();
@@ -3866,6 +3969,50 @@ const Dashboard = () => {
                 setLoading(false);
             }
         };
+
+        if (showForgotPassword) {
+            return (
+                <ForgotPasswordForm
+                    onResetPassword={async ({ email, verificationCode, newPassword, isResend = false }) => {
+                        const endpoint = isResend || !verificationCode
+                            ? `${API_URL}/auth/request-password-reset`
+                            : verificationCode && !newPassword
+                            ? `${API_URL}/auth/verify-reset-code`
+                            : `${API_URL}/auth/reset-password`;
+                        const body = verificationCode && newPassword
+                            ? { email, verificationCode, newPassword }
+                            : verificationCode
+                            ? { email, verificationCode }
+                            : { email };
+
+                        console.log('Haciendo solicitud a:', endpoint, 'con cuerpo:', body);
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                                ...(verificationCode ? { 'Authorization': `Bearer ${localStorage.getItem('token') || ''}` } : {}),
+                            },
+                            body: JSON.stringify(body),
+                        });
+
+                        console.log('Estado de la respuesta:', response.status, response.statusText);
+                        if (!response.ok) {
+                            const error = await response.json();
+                            console.log('Error del servidor:', error);
+                            throw new Error(
+                                error.message ||
+                                `Error al ${isResend ? 'reenviar' : verificationCode && !newPassword ? 'verificar código' : verificationCode ? 'restablecer contraseña' : 'enviar código'}`
+                            );
+                        }
+
+                        const result = await response.json();
+                        console.log('Respuesta parseada:', result);
+                        return { success: true, ...result };
+                    }}
+                    onBackToLogin={() => setShowForgotPassword(false)}
+                />
+            );
+        }
 
         return (
             <div className="min-h-screen flex items-center justify-center bg-[#EDEDED] p-4">
@@ -3940,9 +4087,13 @@ const Dashboard = () => {
                                     </label>
                                 </div>
                                 <div className="text-sm">
-                                    <Link href="/forgot-password" className="font-medium text-[#0074CF] hover:text-[#003268]">
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowForgotPassword(true)}
+                                        className="font-medium text-[#0074CF] hover:text-[#003268]"
+                                    >
                                         ¿Olvidaste tu contraseña?
-                                    </Link>
+                                    </button>
                                 </div>
                             </div>
 

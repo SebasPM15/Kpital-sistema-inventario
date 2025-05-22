@@ -152,6 +152,67 @@ class AuthService {
         await session.destroy();
         return { message: 'Sesión cerrada exitosamente' };
     }
+
+    async requestPasswordReset(email) {
+        const user = await User.findOne({ where: { email } });
+        if (!user) throw new Error('Usuario no encontrado');
+        if (!user.is_verified) throw new Error('El usuario no está verificado');
+
+        const verificationCode = generateVerificationCode();
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000);
+
+        await user.update({
+            verification_code: verificationCode,
+            verification_code_expires: expiresAt,
+        });
+
+        await emailService.sendVerificationEmail(email, verificationCode);
+        return { message: 'Se ha enviado un código de verificación a tu correo para restablecer la contraseña' };
+    }
+
+    async verifyResetCode(email, verificationCode) {
+        const user = await User.findOne({ where: { email } });
+        if (!user) throw new Error('Usuario no encontrado');
+
+        if (user.verification_code !== verificationCode) throw new Error('Código de verificación incorrecto');
+
+        const now = new Date();
+        if (user.verification_code_expires < now) {
+            await user.update({
+                verification_code: null,
+                verification_code_expires: null,
+            });
+            throw new Error('El código de verificación ha expirado. Por favor, solicita uno nuevo.');
+        }
+
+        return { message: 'Código de verificación válido' };
+    }
+
+    async resetPassword(email, verificationCode, newPassword) {
+        const user = await User.findOne({ where: { email } });
+        if (!user) throw new Error('Usuario no encontrado');
+
+        if (user.verification_code !== verificationCode) throw new Error('Código de verificación incorrecto');
+
+        const now = new Date();
+        if (user.verification_code_expires < now) {
+            await user.update({
+                verification_code: null,
+                verification_code_expires: null,
+            });
+            throw new Error('El código de verificación ha expirado. Por favor, solicita uno nuevo.');
+        }
+
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await user.update({
+            password_hash: passwordHash,
+            verification_code: null,
+            verification_code_expires: null,
+        });
+
+        await Session.destroy({ where: { user_id: user.id } });
+        return { message: 'Contraseña restablecida exitosamente. Por favor, inicia sesión con tu nueva contraseña.' };
+    }
 }
 
 export default new AuthService();

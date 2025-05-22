@@ -118,3 +118,57 @@ export const logout = async (req, res) => {
         handleHttpError(res, 'LOGOUT_ERROR', error, error.status || 500);
     }
 };
+
+// Solicitar restablecimiento de contraseña
+export const requestPasswordReset = async (req, res) => {
+    try {
+        const { email } = req.body;
+        if (!email) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Email requerido'), 400);
+        }
+        if (!email.includes('@')) {
+            return handleHttpError(res, 'INVALID_EMAIL', new Error('Email inválido'), 400);
+        }
+        const { message } = await AuthService.requestPasswordReset(email);
+        res.status(200).json({ message });
+    } catch (error) {
+        handleHttpError(res, 'REQUEST_PASSWORD_RESET_ERROR', error, error.status || 500);
+    }
+};
+
+// Verificar código de restablecimiento
+export const verifyResetCode = async (req, res) => {
+    try {
+        const { email, verificationCode } = req.body;
+        if (!email || !verificationCode) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Email y código de verificación requeridos'), 400);
+        }
+        if (!email.includes('@')) {
+            return handleHttpError(res, 'INVALID_EMAIL', new Error('Email inválido'), 400);
+        }
+        const { message } = await AuthService.verifyResetCode(email, verificationCode);
+        res.status(200).json({ message });
+    } catch (error) {
+        handleHttpError(res, 'VERIFY_RESET_CODE_ERROR', error, error.status || 500);
+    }
+};
+
+// Restablecer contraseña
+export const resetPassword = async (req, res) => {
+    try {
+        const { email, verificationCode, newPassword } = req.body;
+        if (!email || !verificationCode || !newPassword) {
+            return handleHttpError(res, 'BAD_REQUEST', new Error('Email, código de verificación y nueva contraseña requeridos'), 400);
+        }
+        if (!email.includes('@')) {
+            return handleHttpError(res, 'INVALID_EMAIL', new Error('Email inválido'), 400);
+        }
+        if (newPassword.length < 6) {
+            return handleHttpError(res, 'INVALID_PASSWORD', new Error('La contraseña debe tener al menos 6 caracteres'), 400);
+        }
+        const { message } = await AuthService.resetPassword(email, verificationCode, newPassword);
+        res.status(200).json({ message });
+    } catch (error) {
+        handleHttpError(res, 'RESET_PASSWORD_ERROR', error, error.status || 500);
+    }
+};

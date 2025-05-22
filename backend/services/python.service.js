@@ -29,6 +29,7 @@ class PythonService {
         return date instanceof Date && !isNaN(date.getTime());
     }
 
+    // Método mejorado para agregar días hábiles
     addBusinessDays(fechaInicio, dias) {
         if (!this._isValidDate(fechaInicio)) {
             logger.error(`Invalid fechaInicio in addBusinessDays: ${fechaInicio}`);
@@ -38,6 +39,13 @@ class PythonService {
         let fechaActual = new Date(fechaInicio);
         let diasSumados = 0;
 
+        // Si la fecha inicial es fin de semana, avanzamos al próximo lunes
+        if (fechaActual.getDay() === 6) { // Sábado
+            fechaActual.setDate(fechaActual.getDate() + 2);
+        } else if (fechaActual.getDay() === 0) { // Domingo
+            fechaActual.setDate(fechaActual.getDate() + 1);
+        }
+
         while (diasSumados < dias) {
             fechaActual.setDate(fechaActual.getDate() + 1);
             if (fechaActual.getDay() !== 0 && fechaActual.getDay() !== 6) {
@@ -45,9 +53,17 @@ class PythonService {
             }
         }
 
+        // Asegurar que la fecha final no sea fin de semana
+        if (fechaActual.getDay() === 6) { // Sábado
+            fechaActual.setDate(fechaActual.getDate() + 2);
+        } else if (fechaActual.getDay() === 0) { // Domingo
+            fechaActual.setDate(fechaActual.getDate() + 1);
+        }
+
         return fechaActual;
     }
 
+    // Método mejorado para calcular días hábiles entre fechas
     getBusinessDaysBetween(startDate, endDate) {
         if (!this._isValidDate(startDate) || !this._isValidDate(endDate)) {
             logger.error(`Invalid dates in getBusinessDaysBetween: start=${startDate}, end=${endDate}`);
@@ -57,6 +73,13 @@ class PythonService {
         let count = 0;
         const date = new Date(startDate);
         const end = new Date(endDate);
+
+        // Ajustar fecha inicial si es fin de semana
+        if (date.getDay() === 6) { // Sábado
+            date.setDate(date.getDate() + 2);
+        } else if (date.getDay() === 0) { // Domingo
+            date.setDate(date.getDate() + 1);
+        }
 
         while (date <= end) {
             if (date.getDay() !== 0 && date.getDay() !== 6) {
@@ -224,52 +247,39 @@ class PythonService {
     }
 
     _updateProjectionActions(product, projection) {
-        // Calcular stock objetivo (promedio entre stock_seguridad y stock_minimo)
+        // Calcular stock objetivo
         const stockObjetivo = (product.STOCK_SEGURIDAD + product.STOCK_MINIMO) / 2;
         let deficit = Math.max(stockObjetivo - projection.stock_proyectado, 0);
 
-        // Ajuste para evitar quiebres de stock
         if (projection.stock_proyectado < product.STOCK_SEGURIDAD) {
             deficit = Math.max(product.STOCK_SEGURIDAD - projection.stock_proyectado, deficit);
         }
 
-        // Initialize default values
+        // Inicializar valores por defecto
         projection.cajas_a_pedir = 0;
         projection.unidades_a_pedir = 0;
         projection.accion_requerida = "Stock suficiente";
         projection.fecha_reposicion = "No aplica";
         projection.fecha_solicitud = "No aplica";
+        projection.fecha_arribo = "No aplica";
 
         if (deficit > 0 && product.UNIDADES_POR_CAJA > 0) {
             projection.cajas_a_pedir = Math.ceil(deficit / product.UNIDADES_POR_CAJA);
             projection.unidades_a_pedir = projection.cajas_a_pedir * product.UNIDADES_POR_CAJA;
             projection.accion_requerida = `Pedir ${projection.cajas_a_pedir} cajas`;
 
-            // Calcular fechas relacionadas con el pedido
+            // Calcular fechas usando dias_transito
             let fechaInicio = new Date(projection.fecha_inicio_proyeccion);
             if (!this._isValidDate(fechaInicio)) {
                 logger.warning(`Invalid fecha_inicio_proyeccion in _updateProjectionActions: ${projection.fecha_inicio_proyeccion}, using current date`);
                 fechaInicio = new Date();
             }
 
-            const tiempoCobertura = product.CONSUMO_DIARIO > 0
-                ? Math.min(projection.stock_proyectado / product.CONSUMO_DIARIO, product.CONFIGURACION.DIAS_MAX_REPOSICION)
-                : 0;
-
-            const fechaReposicion = this.addBusinessDays(fechaInicio, Math.max(tiempoCobertura - product.CONFIGURACION.LEAD_TIME_REPOSICION, 0));
-            projection.fecha_reposicion = this._isValidDate(fechaReposicion)
-                ? fechaReposicion.toISOString().split('T')[0]
-                : "No aplica";
-
-            const fechaSolicitud = this.addBusinessDays(fechaInicio, Math.max(tiempoCobertura - product.CONFIGURACION.LEAD_TIME_REPOSICION - 5, 0));
-            projection.fecha_solicitud = this._isValidDate(fechaSolicitud)
-                ? fechaSolicitud.toISOString().split('T')[0]
-                : "No aplica";
-
-            const fechaArribo = this.addBusinessDays(fechaInicio, Math.max(tiempoCobertura - 5, 0));
-            projection.fecha_arribo = this._isValidDate(fechaArribo)
-                ? fechaArribo.toISOString().split('T')[0]
-                : "No aplica";
+            const diasTransito = projection.dias_transito || product.CONFIGURACION.DIAS_TRANSITO || this.diasConsumoMensual;
+            const fechaArribo = this.addBusinessDays(fechaInicio, diasTransito);
+            projection.fecha_solicitud = fechaInicio.toISOString().split('T')[0];
+            projection.fecha_arribo = fechaArribo.toISOString().split('T')[0];
+            projection.fecha_reposicion = projection.fecha_arribo; // La reposición ocurre en la fecha de arribo
         }
 
         // Set alerta_stock
@@ -290,23 +300,32 @@ class PythonService {
                 fechaInicio = new Date();
             }
 
+            // Ajustar fechaInicio al siguiente día hábil
+            while (fechaInicio.getDay() === 0 || fechaInicio.getDay() === 6) {
+                fechaInicio.setDate(fechaInicio.getDate() + 1);
+            }
+
             // Actualizar fecha inicio basada en fecha fin de la proyección anterior
             currentProj.fecha_inicio_proyeccion = fechaInicio.toISOString().split('T')[0];
 
-            // Calcular días hábiles hasta fin de mes
-            const fechaFinMes = new Date(fechaInicio.getFullYear(), fechaInicio.getMonth() + 1, 0);
-            currentProj.dias_transito = this.getBusinessDaysBetween(fechaInicio, fechaFinMes);
+            // Usar dias_transito existente o el valor por defecto
+            const diasTransito = currentProj.dias_transito || product.CONFIGURACION.DIAS_TRANSITO || 7;
+            logger.info(`Subsequent Projection ${i}: dias_transito = ${diasTransito}`); // Log para depuración
 
             // Actualizar fecha_fin
-            const fechaFin = this.addBusinessDays(fechaInicio, currentProj.dias_transito);
+            const fechaFin = this.addBusinessDays(fechaInicio, diasTransito);
             currentProj.fecha_fin = this._isValidDate(fechaFin)
                 ? fechaFin.toISOString().split('T')[0]
                 : new Date().toISOString().split('T')[0];
 
             // Actualizar consumo y stock
-            currentProj.consumo_mensual = product.CONSUMO_DIARIO * currentProj.dias_transito;
+            currentProj.consumo_mensual = product.CONSUMO_DIARIO * diasTransito;
             currentProj.stock_inicial = currentStock;
             currentProj.stock_proyectado = Math.max(currentStock - currentProj.consumo_mensual, 0);
+
+            // Actualizar fechas de solicitud y arribo
+            currentProj.fecha_solicitud = fechaInicio.toISOString().split('T')[0];
+            currentProj.fecha_arribo = fechaFin.toISOString().split('T')[0];
 
             // Recalcular acciones
             this._updateProjectionActions(product, currentProj);
@@ -493,7 +512,6 @@ class PythonService {
 
     _recalculateProjections(product) {
         const monthNames = ['ENE', 'FEB', 'MAR', 'ABR', 'MAY', 'JUN', 'JUL', 'AGO', 'SEP', 'OCT', 'NOV', 'DIC'];
-        const diasConsumoMensual = this.diasConsumoMensual;
 
         // 1. Configuración inicial
         let fechaInicioProyeccion = product.FECHA_INICIO
@@ -502,6 +520,11 @@ class PythonService {
         if (!this._isValidDate(fechaInicioProyeccion)) {
             logger.warning(`Invalid fecha_inicio_proyeccion in _recalculateProjections, using current date`);
             fechaInicioProyeccion = new Date();
+        }
+
+        // Ajustar fechaInicioProyeccion al siguiente día hábil
+        while (fechaInicioProyeccion.getDay() === 0 || fechaInicioProyeccion.getDay() === 6) {
+            fechaInicioProyeccion.setDate(fechaInicioProyeccion.getDate() + 1);
         }
 
         // 2. Calcular valores fijos
@@ -517,9 +540,9 @@ class PythonService {
         let currentDate = new Date(fechaInicioProyeccion);
         const proyecciones = [];
         let projectionIndex = 0;
-        const maxProjections = 18; // Limitar a 6 proyecciones
+        const maxProjections = 24;
         const endDate = new Date(currentDate);
-        endDate.setMonth(endDate.getMonth() + 18); // Cubrir 6 meses
+        endDate.setMonth(endDate.getMonth() + 24);
 
         // 4. Generar proyecciones dinámicas
         while (currentDate < endDate && projectionIndex < maxProjections) {
@@ -527,22 +550,27 @@ class PythonService {
             const year = currentDate.getFullYear();
             const monthStr = `${monthNames[month]}-${year}`;
 
-            // Usar dias_transito existente o diasConsumoMensual como predeterminado
+            // Usar dias_transito de la proyección existente o el valor de CONFIGURACION
             const existingProjection = product.PROYECCIONES && product.PROYECCIONES[projectionIndex];
-            const diasTransito = existingProjection?.dias_transito || diasConsumoMensual;
+            const diasTransito = existingProjection?.dias_transito || product.CONFIGURACION.DIAS_TRANSITO || 7;
+            logger.info(`Projection ${monthStr}: dias_transito = ${diasTransito}`);
 
             // A. Calcular fechas
-            const fechaFin = this.addBusinessDays(currentDate, diasTransito);
+            let fechaSolicitud = new Date(currentDate);
+            while (fechaSolicitud.getDay() === 0 || fechaSolicitud.getDay() === 6) {
+                fechaSolicitud.setDate(fechaSolicitud.getDate() + 1);
+            }
+            const fechaArribo = this.addBusinessDays(fechaSolicitud, diasTransito);
+            logger.info(`Projection ${monthStr}: fecha_solicitud = ${fechaSolicitud.toISOString()}, fecha_arribo = ${fechaArribo.toISOString()}`);
             const consumoMensual = consumoDiario * diasTransito;
 
             // B. Calcular stock inicial
             let stockInicialMes = currentStock;
             let pedidosRecibidos = 0;
             if (projectionIndex > 0) {
-                // Usar stock proyectado + unidades pedidas de la proyección anterior
                 stockInicialMes = proyecciones[projectionIndex - 1].stock_proyectado + (proyecciones[projectionIndex - 1].unidades_a_pedir || 0);
                 currentStock = stockInicialMes;
-            }            
+            }
             if (pendingOrders[monthStr]) {
                 pedidosRecibidos = pendingOrders[monthStr];
                 delete pendingOrders[monthStr];
@@ -552,49 +580,32 @@ class PythonService {
             // C. Calcular stock proyectado
             const stockProyectado = Math.max(stockInicialMes - consumoMensual, 0);
 
-            // D. Determinar necesidad de pedido con lógica optimizada
+            // D. Determinar necesidad de pedido
             const stockObjetivo = (stockSeguridad + stockMinimo) / 2;
             let deficit = Math.max(stockObjetivo - stockProyectado, 0);
             if (stockProyectado < stockSeguridad) {
                 deficit = Math.max(stockSeguridad - stockProyectado, deficit);
             }
 
-            // D. Determinar necesidad de pedido
             let unidadesAPedir = 0;
             let cajasAPedir = 0;
-            let fechaReposicion = "No aplica";
-            let fechaSolicitud = "No aplica";
-            let fechaArriboPedido = "No aplica";
             let accionRequerida = "Stock suficiente";
+            let fechaReposicion = "No aplica";
 
             if (deficit > 0 && product.UNIDADES_POR_CAJA > 0) {
                 cajasAPedir = Math.ceil(deficit / product.UNIDADES_POR_CAJA);
                 unidadesAPedir = cajasAPedir * product.UNIDADES_POR_CAJA;
                 accionRequerida = `Pedir ${cajasAPedir} cajas`;
+                fechaReposicion = fechaArribo.toISOString().split('T')[0];
 
-                const tiempoCobertura = consumoDiario > 0
-                    ? Math.min(stockProyectado / consumoDiario, product.CONFIGURACION.DIAS_MAX_REPOSICION)
-                    : 0;
-
-                fechaReposicion = this.addBusinessDays(currentDate, Math.max(tiempoCobertura - product.CONFIGURACION.LEAD_TIME_REPOSICION, 0))
-                    .toISOString()
-                    .split('T')[0];
-                fechaSolicitud = this.addBusinessDays(currentDate, Math.max(tiempoCobertura - product.CONFIGURACION.LEAD_TIME_REPOSICION - 5, 0))
-                    .toISOString()
-                    .split('T')[0];
-                fechaArriboPedido = this.addBusinessDays(currentDate, Math.max(tiempoCobertura - 5, 0))
-                    .toISOString()
-                    .split('T')[0];
-
-                // Programar llegada
-                const arrivalDate = this.addBusinessDays(currentDate, diasTransito);
+                const arrivalDate = new Date(fechaArribo);
                 const arrivalMonthStr = `${monthNames[arrivalDate.getMonth()]}-${arrivalDate.getFullYear()}`;
                 pendingOrders[arrivalMonthStr] = (pendingOrders[arrivalMonthStr] || 0) + unidadesAPedir;
             }
 
             // E. Crear proyección
             proyecciones.push({
-                mes: `${monthStr} (${diasTransito} días)`, // Mostrar siempre los días de tránsito
+                mes: `${monthStr} (${diasTransito} días)`,
                 stock_inicial: parseFloat(stockInicialMes.toFixed(2)),
                 stock_proyectado: parseFloat(stockProyectado.toFixed(2)),
                 consumo_mensual: parseFloat(consumoMensual.toFixed(2)),
@@ -610,29 +621,32 @@ class PythonService {
                 accion_requerida: accionRequerida,
                 pedidos_recibidos: parseFloat(pedidosRecibidos.toFixed(2)),
                 fecha_reposicion: fechaReposicion,
-                fecha_solicitud: fechaSolicitud,
-                fecha_arribo: fechaArriboPedido,
+                fecha_solicitud: fechaSolicitud.toISOString().split('T')[0],
+                fecha_arribo: fechaArribo.toISOString().split('T')[0],
                 tiempo_cobertura: consumoDiario > 0
                     ? parseFloat(Math.min(stockProyectado / consumoDiario, product.CONFIGURACION.DIAS_MAX_REPOSICION).toFixed(2))
                     : 0,
                 alerta_stock: stockProyectado < (consumoDiario * product.CONFIGURACION.DIAS_ALARMA_STOCK),
-                fecha_inicio_proyeccion: currentDate.toISOString().split('T')[0],
+                fecha_inicio_proyeccion: fechaSolicitud.toISOString().split('T')[0],
                 consumo_inicial_transito: parseFloat((consumoDiario * diasTransito).toFixed(2)),
                 dias_transito: diasTransito,
                 stock_total: parseFloat((stockInicialMes + pedidosRecibidos).toFixed(2)),
-                fecha_fin: fechaFin.toISOString().split('T')[0]
+                fecha_fin: fechaArribo.toISOString().split('T')[0]
             });
 
             // F. Preparar siguiente proyección
             currentStock = stockProyectado;
-            currentDate = new Date(fechaFin);
+            currentDate = new Date(fechaArribo);
+            while (currentDate.getDay() === 0 || currentDate.getDay() === 6) {
+                currentDate.setDate(currentDate.getDate() + 1);
+            }
             projectionIndex++;
         }
 
         // 5. Actualizar proyecciones
         product.PROYECCIONES = proyecciones;
         product.FECHA_INICIO = fechaInicioProyeccion.toISOString().split('T')[0];
-        product.CONSUMO_PROYECTADO_ARRIBO = consumoDiario * (proyecciones[0]?.dias_transito || diasConsumoMensual);
+        product.CONSUMO_PROYECTADO_ARRIBO = consumoDiario * (proyecciones[0]?.dias_transito || 7);
 
         // 6. Actualizar métricas
         this._updateProductMetrics(product);

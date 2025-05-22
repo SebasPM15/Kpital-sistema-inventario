@@ -35,11 +35,11 @@ class EmailService {
         const mailOptions = {
             from: process.env.EMAIL_USER,
             to: toEmail,
-            subject: 'Código de Verificación - Navixfy',
+            subject: 'Código de Verificación - Plannink',
             text: `Tu código de verificación es: ${verificationCode}. Válido por 15 minutos.`,
             html: `
-                <h2>Verificación de Cuenta - Navixfy</h2>
-                <p>Gracias por registrarte en Navixfy.</p>
+                <h2>Verificación de Cuenta - Plannink</h2>
+                <p>Gracias por registrarte en Plannink.</p>
                 <p>Tu código de verificación es: <strong>${verificationCode}</strong></p>
                 <p>Este código es válido por 15 minutos. Ingresa este código en la página de verificación para completar tu registro.</p>
                 <p>Si no solicitaste este código, ignora este mensaje.</p>
