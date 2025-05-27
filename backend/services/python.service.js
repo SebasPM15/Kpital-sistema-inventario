@@ -264,7 +264,8 @@ class PythonService {
         projection.fecha_arribo = "No aplica";
 
         if (deficit > 0 && product.UNIDADES_POR_CAJA > 0) {
-            projection.cajas_a_pedir = Math.ceil(deficit / product.UNIDADES_POR_CAJA);
+            // Calcular cajas a pedir y agregar 20% adicional
+            projection.cajas_a_pedir = Math.ceil((deficit / product.UNIDADES_POR_CAJA) * 1.3);
             projection.unidades_a_pedir = projection.cajas_a_pedir * product.UNIDADES_POR_CAJA;
             projection.accion_requerida = `Pedir ${projection.cajas_a_pedir} cajas`;
 
@@ -485,7 +486,8 @@ class PythonService {
         }
 
         if (product.UNIDADES_POR_CAJA > 0) {
-            product.CAJAS_A_PEDIR = Math.ceil(deficit / product.UNIDADES_POR_CAJA);
+            // Calcular cajas a pedir y agregar 20% adicional
+            product.CAJAS_A_PEDIR = Math.ceil((deficit / product.UNIDADES_POR_CAJA) * 1.3);
             product.UNIDADES_A_PEDIR = product.CAJAS_A_PEDIR * product.UNIDADES_POR_CAJA;
         } else {
             product.CAJAS_A_PEDIR = 0;
@@ -593,7 +595,8 @@ class PythonService {
             let fechaReposicion = "No aplica";
 
             if (deficit > 0 && product.UNIDADES_POR_CAJA > 0) {
-                cajasAPedir = Math.ceil(deficit / product.UNIDADES_POR_CAJA);
+                // Calcular cajas a pedir y agregar 20% adicional
+                cajasAPedir = Math.ceil((deficit / product.UNIDADES_POR_CAJA) * 1.3);
                 unidadesAPedir = cajasAPedir * product.UNIDADES_POR_CAJA;
                 accionRequerida = `Pedir ${cajasAPedir} cajas`;
                 fechaReposicion = fechaArribo.toISOString().split('T')[0];

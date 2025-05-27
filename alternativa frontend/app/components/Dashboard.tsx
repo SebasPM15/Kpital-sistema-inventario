@@ -1987,9 +1987,31 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
   // Filtrar datos hasta la última proyección con transitDaysApplied
   const filteredData = data.slice(0, lastIndex);
 
+// Función para formatear la fecha de solicitud y calcular los días
+const formatFechaSolicitud = (fechaSolicitud: string, fechaArribo: string) => {
+  if (!fechaSolicitud) return "Sin fecha";
+  const date = new Date(fechaSolicitud);
+  if (isNaN(date.getTime())) return "Fecha inválida";
+
+  const dia = date.toLocaleDateString('es', { day: 'numeric' });
+  const mes = date.toLocaleDateString('es', { month: 'long' }).toUpperCase();
+  const anio = date.getFullYear();
+
+  let dias = 0;
+  if (fechaSolicitud && fechaArribo) {
+    const fechaInicio = new Date(fechaSolicitud);
+    const fechaFin = new Date(fechaArribo);
+    if (!isNaN(fechaInicio.getTime()) && !isNaN(fechaFin.getTime()) && fechaFin >= fechaInicio) {
+      dias = getBusinessDays(fechaInicio, fechaFin)-1; // Restar 1 para no contar el día de solicitud
+    }
+  }
+
+  return `${dia} de ${mes} ${anio} (${dias} DÍAS)`;
+};
+
   // Procesar datos para el gráfico mensual
   const monthlyData = filteredData.map(proyeccion => ({
-    periodo: formatMes(proyeccion.mes),
+    periodo: formatFechaSolicitud(proyeccion.fecha_solicitud, proyeccion.fecha_arribo),
     stock: proyeccion.stock_proyectado,
     min: proyeccion.punto_reorden,
     seguridad: proyeccion.stock_seguridad,
@@ -2001,9 +2023,8 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
   const weeklyData = filteredData.flatMap(proyeccion => {
     const semanas = [];
     
-    // Calcular días laborables entre fecha_solicitud y fecha_arribo
-    let numDiasLaborables = 20; // Fallback: 4 semanas de 5 días laborables
-    let consumoDiario = proyeccion.consumo_mensual / 20; // Fallback: asumir 20 días laborables
+    let numDiasLaborables = 20;
+    let consumoDiario = proyeccion.consumo_mensual / 20;
     
     if (proyeccion.fecha_solicitud && proyeccion.fecha_arribo) {
       const fechaInicio = new Date(proyeccion.fecha_solicitud);
@@ -2014,18 +2035,16 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
       }
     }
 
-    // Calcular el número de semanas (5 días laborables por semana)
     const numSemanas = Math.ceil(numDiasLaborables / 5);
     let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
 
     for (let i = 1; i <= numSemanas; i++) {
-      // Ajustar los días laborables para la última semana si es parcial
       const diasEnSemana = i === numSemanas && numDiasLaborables % 5 !== 0 ? numDiasLaborables % 5 : 5;
       const consumoAjustado = consumoDiario * diasEnSemana;
       stock -= consumoAjustado;
       
       semanas.push({
-        semana: `Sem ${i} ${formatMes(proyeccion.mes)}`,
+        semana: `Sem ${i} ${formatFechaSolicitud(proyeccion.fecha_solicitud, proyeccion.fecha_arribo)}`,
         stock: Math.max(0, stock),
         min: proyeccion.punto_reorden,
         seguridad: proyeccion.stock_seguridad,
@@ -2089,7 +2108,7 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
             data={chartView === 'semanal' ? weeklyData : monthlyData}
-            margin={{ top: 20, right: 20, left: 30, bottom: 80 }}
+            margin={{ top: 20, right: 30, left: 50, bottom: 100 }}
           >
             <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" opacity={0.5} />
             <XAxis
@@ -2101,9 +2120,9 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
                 fill: "#001A30",
                 fontFamily: 'Gotham Regular'
               }}
-              tickMargin={15}
+              tickMargin={20}
               interval={0}
-              height={60}
+              height={80}
             />
             <YAxis
               tick={{
@@ -2139,7 +2158,7 @@ const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
               }}
               labelFormatter={(label) => (
                 <span className="font-gotham-medium">
-                  {chartView === 'semanal' ? 'Semana:' : 'Mes:'} {label}
+                  {chartView === 'semanal' ? 'Semana:' : 'Fecha Solicitud:'} {label}
                 </span>
               )}
               contentStyle={{
@@ -3146,19 +3165,19 @@ const handleApplyTransitDays = async (projectionIndex: number) => {
         proyeccion.stock_seguridad
     );
 
-    // Solo aplicar la verificación de la alerta si NO es el primer pedido
+    // Mostrar alerta si NO es el primer pedido y los días exceden la cobertura
     if (!isFirstTransitApplication && days > diasCoberturaRestantes) {
-        const mensaje = `⚠️ Peligro: Ingresar ${days} días de tránsito excede los ${diasCoberturaRestantes} días de cobertura disponibles. Esto causará una ruptura de stock. Realiza el pedido inmediatamente.`;
+        const mensaje = `⚠️ Advertencia: Ingresar ${days} días de tránsito excede los ${diasCoberturaRestantes} días de cobertura disponibles. Esto puede causar una ruptura de stock, pero los días se aplicarán. Realiza el pedido lo antes posible.`;
 
         toast.error(mensaje, {
-            position: "top-center", // Cambiado de "top-right" a "top-center"
+            position: "top-center",
             autoClose: 5000,
             hideProgressBar: false,
             closeOnClick: true,
             pauseOnHover: true,
             draggable: true,
         });
-        return;
+        // Nota: No usamos return aquí para permitir que los días se apliquen
     }
 
     // Proceder con la operación
