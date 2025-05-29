@@ -194,3 +194,549 @@
 2025-04-04 14:56:54,054 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.json
 2025-04-04 14:56:54,087 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\../data\predicciones_completas.min.json
 2025-04-04 14:56:54,087 - INFO - === PROCESO COMPLETADO ===
+2025-05-17 23:56:40,285 - INFO - === INICIO DEL PROCESO ===
+2025-05-17 23:56:40,295 - INFO - Directorio base: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model
+2025-05-17 23:56:40,295 - INFO - Directorio de datos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data
+2025-05-17 23:56:40,295 - INFO - Directorio de modelos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models
+2025-05-17 23:56:40,295 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\libro4.xlsx
+2025-05-17 23:56:40,295 - ERROR - Error en carga de datos: Archivo no encontrado: libro4.xlsx
+2025-05-17 23:56:40,295 - ERROR - Detalles del error: Traceback (most recent call last):
+  File "C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\predict.py", line 194, in cargar_datos
+    raise FileNotFoundError(f"Archivo no encontrado: {args.excel}")
+FileNotFoundError: Archivo no encontrado: libro4.xlsx
+
+2025-05-17 23:57:13,825 - INFO - === INICIO DEL PROCESO ===
+2025-05-17 23:57:13,825 - INFO - Directorio base: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model
+2025-05-17 23:57:13,825 - INFO - Directorio de datos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data
+2025-05-17 23:57:13,825 - INFO - Directorio de modelos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models
+2025-05-17 23:57:13,827 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\Libro4.xlsx
+2025-05-17 23:57:13,827 - ERROR - Error en carga de datos: Archivo no encontrado: Libro4.xlsx
+2025-05-17 23:57:13,827 - ERROR - Detalles del error: Traceback (most recent call last):
+  File "C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\src\predict.py", line 194, in cargar_datos
+    raise FileNotFoundError(f"Archivo no encontrado: {args.excel}")
+FileNotFoundError: Archivo no encontrado: Libro4.xlsx
+
+2025-05-17 23:58:54,872 - INFO - === INICIO DEL PROCESO ===
+2025-05-17 23:58:54,872 - INFO - Directorio base: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model
+2025-05-17 23:58:54,872 - INFO - Directorio de datos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data
+2025-05-17 23:58:54,872 - INFO - Directorio de modelos: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models
+2025-05-17 23:58:54,872 - INFO - Cargando archivo: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\PRUEBA PASANTIAS EPN.xlsx
+2025-05-17 23:58:55,113 - INFO - Fecha cruda extraída de A2: 2025-02-14 00:00:00
+2025-05-17 23:58:55,119 - INFO - Fecha parseada de A2: 2025-02-14 00:00:00
+2025-05-17 23:58:55,223 - INFO - Primeras filas del Excel (sin procesar):
+            Unnamed: 0   Unnamed: 1 Unnamed: 2  Unnamed: 3  ... Unnamed: 41     Unnamed: 42              Unnamed: 43                    Unnamed: 44
+0  2025-02-14 00:00:00          NaN        NaN         NaN  ...         NaN              16                      NaN                            NaN
+1               CODIGO  DESCRIPCION  UNID/CAJA         NaN  ...       cajas  redondeo cajas  A PEDIR\nUNID\nPO-V2580  A PEDIR\nUNID&CAJAS\nPO-V2580
+
+[2 rows x 45 columns]
+2025-05-17 23:58:55,316 - INFO - Archivo leído correctamente
+2025-05-17 23:58:55,318 - INFO - Columnas que comienzan con 'CONS ' encontradas: ['CONS ENE 2024', 'CONS FEB 2024', 'CONS MAR 2024', 'CONS ABR 2024', 'CONS MAY 2024', 'CONS JUN 2024', 'CONS JUL 2024', 'CONS AGO 2024', 'CONS SEP 2024', 'CONS OCT 2024', 'CONS NOV 2024', 'CONS DIC 2024', 'CONS ENE 2025', 'CONS FEB 2025']
+2025-05-17 23:58:55,318 - INFO - Columnas ordenadas: ['CONS ENE 2024', 'CONS FEB 2024', 'CONS MAR 2024', 'CONS ABR 2024', 'CONS MAY 2024', 'CONS JUN 2024', 'CONS JUL 2024', 'CONS AGO 2024', 'CONS SEP 2024', 'CONS OCT 2024', 'CONS NOV 2024', 'CONS DIC 2024', 'CONS ENE 2025', 'CONS FEB 2025']
+2025-05-17 23:58:55,318 - INFO - Última fecha detectada: 2025-02-01
+2025-05-17 23:58:55,319 - INFO - Cargando modelo Prophet: C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\models\prophet_model.pkl.gz
+2025-05-17 23:58:55,836 - INFO - Modelo Prophet cargado correctamente
+2025-05-17 23:58:55,936 - WARNING - Error MAPE para V7201-D es 282.84%, superior al 5% permitido
+2025-05-17 23:58:55,936 - ERROR - Error al predecir con Prophet para V7201-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:55,954 - WARNING - Error MAPE para V7206-D es 559.69%, superior al 5% permitido
+2025-05-17 23:58:55,956 - ERROR - Error al predecir con Prophet para V7206-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:55,968 - WARNING - Error MAPE para V706-D es 1064.22%, superior al 5% permitido
+2025-05-17 23:58:55,973 - ERROR - Error al predecir con Prophet para V706-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:55,990 - WARNING - Error MAPE para V701-D es 861.76%, superior al 5% permitido
+2025-05-17 23:58:55,990 - ERROR - Error al predecir con Prophet para V701-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,007 - WARNING - Error MAPE para V915-Q es 1197.75%, superior al 5% permitido
+2025-05-17 23:58:56,007 - ERROR - Error al predecir con Prophet para V915-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,024 - WARNING - Error MAPE para V7222-D es 2169.82%, superior al 5% permitido
+2025-05-17 23:58:56,024 - ERROR - Error al predecir con Prophet para V7222-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,043 - WARNING - Error MAPE para 16-3601Q es 2627.70%, superior al 5% permitido
+2025-05-17 23:58:56,044 - ERROR - Error al predecir con Prophet para 16-3601Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,063 - WARNING - Error MAPE para V721-D es 24787.71%, superior al 5% permitido
+2025-05-17 23:58:56,064 - ERROR - Error al predecir con Prophet para V721-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,081 - WARNING - Error MAPE para V4211-D es 3791.43%, superior al 5% permitido
+2025-05-17 23:58:56,082 - ERROR - Error al predecir con Prophet para V4211-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,100 - WARNING - Error MAPE para V411-D es 19033.96%, superior al 5% permitido
+2025-05-17 23:58:56,100 - ERROR - Error al predecir con Prophet para V411-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,118 - WARNING - Error MAPE para V7204-D es 1924.19%, superior al 5% permitido
+2025-05-17 23:58:56,118 - ERROR - Error al predecir con Prophet para V7204-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,136 - WARNING - Error MAPE para V705-D es 2739.42%, superior al 5% permitido
+2025-05-17 23:58:56,137 - ERROR - Error al predecir con Prophet para V705-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,154 - WARNING - Error MAPE para V4201-D es 2811.12%, superior al 5% permitido
+2025-05-17 23:58:56,155 - ERROR - Error al predecir con Prophet para V4201-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,174 - WARNING - Error MAPE para V7205-D es 3233.69%, superior al 5% permitido
+2025-05-17 23:58:56,174 - ERROR - Error al predecir con Prophet para V7205-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,192 - WARNING - Error MAPE para V827-D es 2615.92%, superior al 5% permitido
+2025-05-17 23:58:56,193 - ERROR - Error al predecir con Prophet para V827-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,212 - WARNING - Error MAPE para V840-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,213 - ERROR - Error al predecir con Prophet para V840-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,231 - WARNING - Error MAPE para V7223-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,232 - ERROR - Error al predecir con Prophet para V7223-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,244 - WARNING - Error MAPE para V401-D es 8381.20%, superior al 5% permitido
+2025-05-17 23:58:56,244 - ERROR - Error al predecir con Prophet para V401-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,264 - WARNING - Error MAPE para V712-D es 19922.57%, superior al 5% permitido
+2025-05-17 23:58:56,264 - ERROR - Error al predecir con Prophet para V712-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,280 - WARNING - Error MAPE para V4262-D es 10461.82%, superior al 5% permitido
+2025-05-17 23:58:56,280 - ERROR - Error al predecir con Prophet para V4262-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,295 - WARNING - Error MAPE para 20943 es 17194.70%, superior al 5% permitido
+2025-05-17 23:58:56,303 - ERROR - Error al predecir con Prophet para 20943: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,319 - WARNING - Error MAPE para V483AB-C es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,319 - ERROR - Error al predecir con Prophet para V483AB-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,335 - WARNING - Error MAPE para V4238-D es 10102.50%, superior al 5% permitido
+2025-05-17 23:58:56,335 - ERROR - Error al predecir con Prophet para V4238-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,353 - WARNING - Error MAPE para V7250-D es 11696.21%, superior al 5% permitido
+2025-05-17 23:58:56,353 - ERROR - Error al predecir con Prophet para V7250-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,370 - WARNING - Error MAPE para V7212-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,370 - ERROR - Error al predecir con Prophet para V7212-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,384 - WARNING - Error MAPE para V826-D es 21013.15%, superior al 5% permitido
+2025-05-17 23:58:56,390 - ERROR - Error al predecir con Prophet para V826-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,405 - WARNING - Error MAPE para V821-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,405 - ERROR - Error al predecir con Prophet para V821-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,423 - WARNING - Error MAPE para V822-D es 5817.91%, superior al 5% permitido
+2025-05-17 23:58:56,423 - ERROR - Error al predecir con Prophet para V822-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,439 - WARNING - Error MAPE para V722-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,439 - ERROR - Error al predecir con Prophet para V722-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,456 - WARNING - Error MAPE para V704-D es 21013.15%, superior al 5% permitido
+2025-05-17 23:58:56,456 - ERROR - Error al predecir con Prophet para V704-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,468 - WARNING - Error MAPE para V4237-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,468 - ERROR - Error al predecir con Prophet para V4237-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,485 - WARNING - Error MAPE para V7278-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,490 - ERROR - Error al predecir con Prophet para V7278-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,507 - WARNING - Error MAPE para V904-Q es 16523.37%, superior al 5% permitido
+2025-05-17 23:58:56,507 - ERROR - Error al predecir con Prophet para V904-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,524 - WARNING - Error MAPE para V7216-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,524 - ERROR - Error al predecir con Prophet para V7216-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,537 - WARNING - Error MAPE para V716-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,537 - ERROR - Error al predecir con Prophet para V716-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,557 - WARNING - Error MAPE para V4220-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,557 - ERROR - Error al predecir con Prophet para V4220-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,577 - WARNING - Error MAPE para V7206-L es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,577 - ERROR - Error al predecir con Prophet para V7206-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,595 - WARNING - Error MAPE para V7223-L es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,595 - ERROR - Error al predecir con Prophet para V7223-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,612 - WARNING - Error MAPE para 16-8535Q es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,612 - ERROR - Error al predecir con Prophet para 16-8535Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,628 - WARNING - Error MAPE para V851-R es 13839.00%, superior al 5% permitido
+2025-05-17 23:58:56,628 - ERROR - Error al predecir con Prophet para V851-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,645 - WARNING - Error MAPE para V4218-D es 29089.54%, superior al 5% permitido
+2025-05-17 23:58:56,645 - ERROR - Error al predecir con Prophet para V4218-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,663 - WARNING - Error MAPE para V528-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,663 - ERROR - Error al predecir con Prophet para V528-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,675 - WARNING - Error MAPE para V523-D es 45265.61%, superior al 5% permitido
+2025-05-17 23:58:56,682 - ERROR - Error al predecir con Prophet para V523-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,691 - WARNING - Error MAPE para V7211-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,691 - ERROR - Error al predecir con Prophet para V7211-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,711 - WARNING - Error MAPE para V4259-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,711 - ERROR - Error al predecir con Prophet para V4259-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,729 - WARNING - Error MAPE para V514-D es 38786.06%, superior al 5% permitido
+2025-05-17 23:58:56,729 - ERROR - Error al predecir con Prophet para V514-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,747 - WARNING - Error MAPE para V4260-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,747 - ERROR - Error al predecir con Prophet para V4260-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,767 - WARNING - Error MAPE para V7201-L es 28350.92%, superior al 5% permitido
+2025-05-17 23:58:56,767 - ERROR - Error al predecir con Prophet para V7201-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,784 - WARNING - Error MAPE para V4230-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,787 - ERROR - Error al predecir con Prophet para V4230-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,802 - WARNING - Error MAPE para V526-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,804 - ERROR - Error al predecir con Prophet para V526-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,817 - WARNING - Error MAPE para V430-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,817 - ERROR - Error al predecir con Prophet para V430-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,836 - WARNING - Error MAPE para V4271-D es 193857152416009322496.00%, superior al 5% permitido
+2025-05-17 23:58:56,836 - ERROR - Error al predecir con Prophet para V4271-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,853 - WARNING - Error MAPE para V910-Q es 193857152416009355264.00%, superior al 5% permitido
+2025-05-17 23:58:56,854 - ERROR - Error al predecir con Prophet para V910-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,865 - WARNING - Error MAPE para V720-D es 47417.85%, superior al 5% permitido
+2025-05-17 23:58:56,865 - ERROR - Error al predecir con Prophet para V720-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,888 - WARNING - Error MAPE para V460-D es 193857152416009355264.00%, superior al 5% permitido
+2025-05-17 23:58:56,888 - ERROR - Error al predecir con Prophet para V460-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,906 - WARNING - Error MAPE para V4201-L es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,906 - ERROR - Error al predecir con Prophet para V4201-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,924 - WARNING - Error MAPE para 20947 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,924 - ERROR - Error al predecir con Prophet para 20947: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,938 - WARNING - Error MAPE para V410-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:56,938 - ERROR - Error al predecir con Prophet para V410-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,961 - WARNING - Error MAPE para V471-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,961 - ERROR - Error al predecir con Prophet para V471-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:56,979 - WARNING - Error MAPE para V4278-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:56,979 - ERROR - Error al predecir con Prophet para V4278-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,003 - WARNING - Error MAPE para V418-D es 94835.71%, superior al 5% permitido
+2025-05-17 23:58:57,003 - ERROR - Error al predecir con Prophet para V418-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,022 - WARNING - Error MAPE para V7217-L es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,022 - ERROR - Error al predecir con Prophet para V7217-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,041 - WARNING - Error MAPE para V4220-L es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,041 - ERROR - Error al predecir con Prophet para V4220-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,057 - WARNING - Error MAPE para V7219-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,057 - ERROR - Error al predecir con Prophet para V7219-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,073 - WARNING - Error MAPE para V462-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,073 - ERROR - Error al predecir con Prophet para V462-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,090 - WARNING - Error MAPE para V4275-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,092 - ERROR - Error al predecir con Prophet para V4275-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,106 - WARNING - Error MAPE para M512-K es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,106 - ERROR - Error al predecir con Prophet para M512-K: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,126 - WARNING - Error MAPE para V4250-D es 58179.09%, superior al 5% permitido
+2025-05-17 23:58:57,126 - ERROR - Error al predecir con Prophet para V4250-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,145 - WARNING - Error MAPE para 201-0001-401 es 193857152416009322496.00%, superior al 5% permitido
+2025-05-17 23:58:57,145 - ERROR - Error al predecir con Prophet para 201-0001-401: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,162 - WARNING - Error MAPE para V4264-D es 193857152416009355264.00%, superior al 5% permitido
+2025-05-17 23:58:57,164 - ERROR - Error al predecir con Prophet para V4264-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,178 - WARNING - Error MAPE para V723-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,178 - ERROR - Error al predecir con Prophet para V723-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,198 - WARNING - Error MAPE para V730-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,198 - ERROR - Error al predecir con Prophet para V730-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,216 - WARNING - Error MAPE para V718-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,216 - ERROR - Error al predecir con Prophet para V718-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,233 - WARNING - Error MAPE para V719-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,233 - ERROR - Error al predecir con Prophet para V719-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,253 - WARNING - Error MAPE para V496-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,253 - ERROR - Error al predecir con Prophet para V496-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,271 - WARNING - Error MAPE para V571-R es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,272 - ERROR - Error al predecir con Prophet para V571-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,290 - WARNING - Error MAPE para V438-D es 193857152416009322496.00%, superior al 5% permitido
+2025-05-17 23:58:57,291 - ERROR - Error al predecir con Prophet para V438-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,307 - WARNING - Error MAPE para V4287-E es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,307 - ERROR - Error al predecir con Prophet para V4287-E: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,322 - WARNING - Error MAPE para V507-D es 39850.78%, superior al 5% permitido
+2025-05-17 23:58:57,322 - ERROR - Error al predecir con Prophet para V507-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,338 - WARNING - Error MAPE para V4283-E es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,345 - ERROR - Error al predecir con Prophet para V4283-E: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,357 - WARNING - Error MAPE para V7221-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,361 - ERROR - Error al predecir con Prophet para V7221-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,371 - WARNING - Error MAPE para V711-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,378 - ERROR - Error al predecir con Prophet para V711-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,388 - WARNING - Error MAPE para V912-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,395 - ERROR - Error al predecir con Prophet para V912-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,411 - WARNING - Error MAPE para V480-C es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,411 - ERROR - Error al predecir con Prophet para V480-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,428 - WARNING - Error MAPE para V4212-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,428 - ERROR - Error al predecir con Prophet para V4212-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,446 - WARNING - Error MAPE para V710-D es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,446 - ERROR - Error al predecir con Prophet para V710-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,456 - WARNING - Error MAPE para V909-Q es 330173481832196472832.00%, superior al 5% permitido
+2025-05-17 23:58:57,456 - ERROR - Error al predecir con Prophet para V909-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,471 - WARNING - Error MAPE para V521-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,479 - ERROR - Error al predecir con Prophet para V521-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,495 - WARNING - Error MAPE para V473-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,495 - ERROR - Error al predecir con Prophet para V473-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,512 - WARNING - Error MAPE para 16-5605Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,512 - ERROR - Error al predecir con Prophet para 16-5605Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,528 - WARNING - Error MAPE para V4215-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,528 - ERROR - Error al predecir con Prophet para V4215-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,546 - WARNING - Error MAPE para V415-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,547 - ERROR - Error al predecir con Prophet para V415-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,562 - WARNING - Error MAPE para 16-7135Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,562 - ERROR - Error al predecir con Prophet para 16-7135Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,579 - WARNING - Error MAPE para V905-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,579 - ERROR - Error al predecir con Prophet para V905-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,598 - WARNING - Error MAPE para V4211-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,598 - ERROR - Error al predecir con Prophet para V4211-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,613 - WARNING - Error MAPE para V476-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,613 - ERROR - Error al predecir con Prophet para V476-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,630 - WARNING - Error MAPE para V825-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,635 - ERROR - Error al predecir con Prophet para V825-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,641 - WARNING - Error MAPE para V7211-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,651 - ERROR - Error al predecir con Prophet para V7211-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,668 - WARNING - Error MAPE para V4276-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,668 - ERROR - Error al predecir con Prophet para V4276-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,684 - WARNING - Error MAPE para V459-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,684 - ERROR - Error al predecir con Prophet para V459-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,702 - WARNING - Error MAPE para 201-0001-602 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,702 - ERROR - Error al predecir con Prophet para 201-0001-602: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,718 - WARNING - Error MAPE para V469-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,718 - ERROR - Error al predecir con Prophet para V469-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,726 - WARNING - Error MAPE para V420-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,735 - ERROR - Error al predecir con Prophet para V420-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,745 - WARNING - Error MAPE para V7248-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,745 - ERROR - Error al predecir con Prophet para V7248-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,760 - WARNING - Error MAPE para 16-7130Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,760 - ERROR - Error al predecir con Prophet para 16-7130Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,776 - WARNING - Error MAPE para V490-C es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,776 - ERROR - Error al predecir con Prophet para V490-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,800 - WARNING - Error MAPE para V481-C es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,801 - ERROR - Error al predecir con Prophet para V481-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,809 - WARNING - Error MAPE para V414-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,809 - ERROR - Error al predecir con Prophet para V414-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,837 - WARNING - Error MAPE para V4248-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,837 - ERROR - Error al predecir con Prophet para V4248-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,856 - WARNING - Error MAPE para V4218-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,861 - ERROR - Error al predecir con Prophet para V4218-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,872 - WARNING - Error MAPE para V7205-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,872 - ERROR - Error al predecir con Prophet para V7205-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,897 - WARNING - Error MAPE para V4240-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,897 - ERROR - Error al predecir con Prophet para V4240-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,913 - WARNING - Error MAPE para 16-8545Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,915 - ERROR - Error al predecir con Prophet para 16-8545Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,931 - WARNING - Error MAPE para V708-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,931 - ERROR - Error al predecir con Prophet para V708-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,945 - WARNING - Error MAPE para 16-3420Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,945 - ERROR - Error al predecir con Prophet para 16-3420Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,956 - WARNING - Error MAPE para IJ-P-BK2-G5 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,956 - ERROR - Error al predecir con Prophet para IJ-P-BK2-G5: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,976 - WARNING - Error MAPE para V4202-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:57,976 - ERROR - Error al predecir con Prophet para V4202-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:57,994 - WARNING - Error MAPE para V833-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,002 - ERROR - Error al predecir con Prophet para V833-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,018 - WARNING - Error MAPE para V531-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,018 - ERROR - Error al predecir con Prophet para V531-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,035 - WARNING - Error MAPE para V4231-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,035 - ERROR - Error al predecir con Prophet para V4231-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,052 - WARNING - Error MAPE para 16-5600Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,054 - ERROR - Error al predecir con Prophet para 16-5600Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,070 - WARNING - Error MAPE para V7212-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,070 - ERROR - Error al predecir con Prophet para V7212-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,085 - WARNING - Error MAPE para 16-8635Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,085 - ERROR - Error al predecir con Prophet para 16-8635Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,102 - WARNING - Error MAPE para V731-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,102 - ERROR - Error al predecir con Prophet para V731-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,121 - WARNING - Error MAPE para V499-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,121 - ERROR - Error al predecir con Prophet para V499-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,137 - WARNING - Error MAPE para V906-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,139 - ERROR - Error al predecir con Prophet para V906-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,155 - WARNING - Error MAPE para 16-8565Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,155 - ERROR - Error al predecir con Prophet para 16-8565Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,170 - WARNING - Error MAPE para 16-8425Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,170 - ERROR - Error al predecir con Prophet para 16-8425Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,190 - WARNING - Error MAPE para V4260-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,190 - ERROR - Error al predecir con Prophet para V4260-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,204 - WARNING - Error MAPE para V4276-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,204 - ERROR - Error al predecir con Prophet para V4276-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,225 - WARNING - Error MAPE para V901-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,225 - ERROR - Error al predecir con Prophet para V901-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,242 - WARNING - Error MAPE para 16-8530Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,242 - ERROR - Error al predecir con Prophet para 16-8530Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,257 - WARNING - Error MAPE para V491-C es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,257 - ERROR - Error al predecir con Prophet para V491-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,280 - WARNING - Error MAPE para 16-3500Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,280 - ERROR - Error al predecir con Prophet para 16-3500Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,298 - WARNING - Error MAPE para M512L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,298 - ERROR - Error al predecir con Prophet para M512L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,316 - WARNING - Error MAPE para 16-2960Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,316 - ERROR - Error al predecir con Prophet para 16-2960Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,334 - WARNING - Error MAPE para V435-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,334 - ERROR - Error al predecir con Prophet para V435-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,352 - WARNING - Error MAPE para V4210-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,353 - ERROR - Error al predecir con Prophet para V4210-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,371 - WARNING - Error MAPE para 16-2965Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,372 - ERROR - Error al predecir con Prophet para 16-2965Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,389 - WARNING - Error MAPE para 16-2565Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,390 - ERROR - Error al predecir con Prophet para 16-2565Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,408 - WARNING - Error MAPE para V7210-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,409 - ERROR - Error al predecir con Prophet para V7210-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,428 - WARNING - Error MAPE para V7222-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,428 - ERROR - Error al predecir con Prophet para V7222-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,446 - WARNING - Error MAPE para 16-3801Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,446 - ERROR - Error al predecir con Prophet para 16-3801Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,464 - WARNING - Error MAPE para 16-8540Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,464 - ERROR - Error al predecir con Prophet para 16-8540Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,482 - WARNING - Error MAPE para V516-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,482 - ERROR - Error al predecir con Prophet para V516-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,498 - WARNING - Error MAPE para 16-8560Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,498 - ERROR - Error al predecir con Prophet para 16-8560Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,518 - WARNING - Error MAPE para 16-8420Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,518 - ERROR - Error al predecir con Prophet para 16-8420Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,537 - WARNING - Error MAPE para V4269-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,537 - ERROR - Error al predecir con Prophet para V4269-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,552 - WARNING - Error MAPE para 16-8000Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,555 - ERROR - Error al predecir con Prophet para 16-8000Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,572 - WARNING - Error MAPE para 16-8630Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,572 - ERROR - Error al predecir con Prophet para 16-8630Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,589 - WARNING - Error MAPE para V4222-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,590 - ERROR - Error al predecir con Prophet para V4222-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,605 - WARNING - Error MAPE para SER-CODBACTOBIOLOGY es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,605 - ERROR - Error al predecir con Prophet para SER-CODBACTOBIOLOGY: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,621 - WARNING - Error MAPE para V706-K es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,621 - ERROR - Error al predecir con Prophet para V706-K: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,639 - WARNING - Error MAPE para V530-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,639 - ERROR - Error al predecir con Prophet para V530-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,663 - WARNING - Error MAPE para V831-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,663 - ERROR - Error al predecir con Prophet para V831-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,679 - WARNING - Error MAPE para 16-8005Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,679 - ERROR - Error al predecir con Prophet para 16-8005Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,695 - WARNING - Error MAPE para V411-K es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,695 - ERROR - Error al predecir con Prophet para V411-K: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,714 - WARNING - Error MAPE para 16-5705Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,716 - ERROR - Error al predecir con Prophet para 16-5705Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,732 - WARNING - Error MAPE para V4262-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,732 - ERROR - Error al predecir con Prophet para V4262-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,749 - WARNING - Error MAPE para 16-2560Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,749 - ERROR - Error al predecir con Prophet para 16-2560Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,768 - WARNING - Error MAPE para V4237-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,768 - ERROR - Error al predecir con Prophet para V4237-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,785 - WARNING - Error MAPE para V853-R es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,785 - ERROR - Error al predecir con Prophet para V853-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,803 - WARNING - Error MAPE para V573-R es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,803 - ERROR - Error al predecir con Prophet para V573-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,819 - WARNING - Error MAPE para V574-R es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,819 - ERROR - Error al predecir con Prophet para V574-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,836 - WARNING - Error MAPE para V854-R es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,836 - ERROR - Error al predecir con Prophet para V854-R: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,847 - WARNING - Error MAPE para V4269-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,854 - ERROR - Error al predecir con Prophet para V4269-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,870 - WARNING - Error MAPE para V7210-L es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,872 - ERROR - Error al predecir con Prophet para V7210-L: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,888 - WARNING - Error MAPE para M512-4 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,888 - ERROR - Error al predecir con Prophet para M512-4: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,906 - WARNING - Error MAPE para V0001-401 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,906 - ERROR - Error al predecir con Prophet para V0001-401: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,921 - WARNING - Error MAPE para 16-8205Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,924 - ERROR - Error al predecir con Prophet para 16-8205Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,937 - WARNING - Error MAPE para V0001-702 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,937 - ERROR - Error al predecir con Prophet para V0001-702: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,955 - WARNING - Error MAPE para 201-0001-702 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,960 - ERROR - Error al predecir con Prophet para 201-0001-702: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,970 - WARNING - Error MAPE para 16-8200Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,970 - ERROR - Error al predecir con Prophet para 16-8200Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:58,997 - WARNING - Error MAPE para V0001-602 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:58,997 - ERROR - Error al predecir con Prophet para V0001-602: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,008 - WARNING - Error MAPE para V902-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,008 - ERROR - Error al predecir con Prophet para V902-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,026 - WARNING - Error MAPE para V402-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,035 - ERROR - Error al predecir con Prophet para V402-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,051 - WARNING - Error MAPE para 16-5700Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,051 - ERROR - Error al predecir con Prophet para 16-5700Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,068 - WARNING - Error MAPE para 16-8465Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,068 - ERROR - Error al predecir con Prophet para 16-8465Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,085 - WARNING - Error MAPE para 16-9400Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,087 - ERROR - Error al predecir con Prophet para 16-9400Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,104 - WARNING - Error MAPE para V458-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,104 - ERROR - Error al predecir con Prophet para V458-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,121 - WARNING - Error MAPE para EXPV3301-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,121 - ERROR - Error al predecir con Prophet para EXPV3301-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,137 - WARNING - Error MAPE para V0001-422 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,137 - ERROR - Error al predecir con Prophet para V0001-422: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,156 - WARNING - Error MAPE para V707-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,157 - ERROR - Error al predecir con Prophet para V707-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,174 - WARNING - Error MAPE para 16-46SR44 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,174 - ERROR - Error al predecir con Prophet para 16-46SR44: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,191 - WARNING - Error MAPE para 16-8575Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,191 - ERROR - Error al predecir con Prophet para 16-8575Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,208 - WARNING - Error MAPE para V513-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,208 - ERROR - Error al predecir con Prophet para V513-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,229 - WARNING - Error MAPE para V0001-252 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,229 - ERROR - Error al predecir con Prophet para V0001-252: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,245 - WARNING - Error MAPE para V714-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,245 - ERROR - Error al predecir con Prophet para V714-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,264 - WARNING - Error MAPE para V520-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,264 - ERROR - Error al predecir con Prophet para V520-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,281 - WARNING - Error MAPE para V475-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,281 - ERROR - Error al predecir con Prophet para V475-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,297 - WARNING - Error MAPE para V0001-681 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,302 - ERROR - Error al predecir con Prophet para V0001-681: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,315 - WARNING - Error MAPE para V472-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,315 - ERROR - Error al predecir con Prophet para V472-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,334 - WARNING - Error MAPE para V0001-012 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,334 - ERROR - Error al predecir con Prophet para V0001-012: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,352 - WARNING - Error MAPE para 16-5805Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,352 - ERROR - Error al predecir con Prophet para 16-5805Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,368 - WARNING - Error MAPE para 16-8550Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,370 - ERROR - Error al predecir con Prophet para 16-8550Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,388 - WARNING - Error MAPE para V515-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,388 - ERROR - Error al predecir con Prophet para V515-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,404 - WARNING - Error MAPE para 16-2560D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,404 - ERROR - Error al predecir con Prophet para 16-2560D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,421 - WARNING - Error MAPE para V525-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,421 - ERROR - Error al predecir con Prophet para V525-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,438 - WARNING - Error MAPE para 16-8555Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,438 - ERROR - Error al predecir con Prophet para 16-8555Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,456 - WARNING - Error MAPE para 16-8670Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,456 - ERROR - Error al predecir con Prophet para 16-8670Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,472 - WARNING - Error MAPE para V519-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,472 - ERROR - Error al predecir con Prophet para V519-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,488 - WARNING - Error MAPE para V489-C es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,488 - ERROR - Error al predecir con Prophet para V489-C: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,505 - WARNING - Error MAPE para 16-8655Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,511 - ERROR - Error al predecir con Prophet para 16-8655Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,522 - WARNING - Error MAPE para V422-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,528 - ERROR - Error al predecir con Prophet para V422-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,545 - WARNING - Error MAPE para 16-8105Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,545 - ERROR - Error al predecir con Prophet para 16-8105Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,562 - WARNING - Error MAPE para V518-D  es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,562 - ERROR - Error al predecir con Prophet para V518-D : "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,579 - WARNING - Error MAPE para V412-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,579 - ERROR - Error al predecir con Prophet para V412-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,596 - WARNING - Error MAPE para EXPV1412-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,596 - ERROR - Error al predecir con Prophet para EXPV1412-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,615 - WARNING - Error MAPE para 16-8570AB es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,615 - ERROR - Error al predecir con Prophet para 16-8570AB: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,631 - WARNING - Error MAPE para CMB-FLUVJ1000 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,632 - ERROR - Error al predecir con Prophet para CMB-FLUVJ1000: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,650 - WARNING - Error MAPE para 16-2300Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,650 - ERROR - Error al predecir con Prophet para 16-2300Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,666 - WARNING - Error MAPE para V437-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,666 - ERROR - Error al predecir con Prophet para V437-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,685 - WARNING - Error MAPE para 16-2330Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,685 - ERROR - Error al predecir con Prophet para 16-2330Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,701 - WARNING - Error MAPE para CM75-BK-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,701 - ERROR - Error al predecir con Prophet para CM75-BK-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,720 - WARNING - Error MAPE para V538-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,720 - ERROR - Error al predecir con Prophet para V538-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,785 - WARNING - Error MAPE para 16-8100Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,793 - ERROR - Error al predecir con Prophet para 16-8100Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,804 - WARNING - Error MAPE para EXPV1465-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,810 - ERROR - Error al predecir con Prophet para EXPV1465-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,826 - WARNING - Error MAPE para 16-8560XM es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,826 - ERROR - Error al predecir con Prophet para 16-8560XM: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,843 - WARNING - Error MAPE para CM75-SOLVENT-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,843 - ERROR - Error al predecir con Prophet para CM75-SOLVENT-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,860 - WARNING - Error MAPE para K-SOL-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,860 - ERROR - Error al predecir con Prophet para K-SOL-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,872 - WARNING - Error MAPE para RMS-Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,878 - ERROR - Error al predecir con Prophet para RMS-Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,887 - WARNING - Error MAPE para T-BKP-P es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,887 - ERROR - Error al predecir con Prophet para T-BKP-P: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,907 - WARNING - Error MAPE para V505-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,907 - ERROR - Error al predecir con Prophet para V505-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,926 - WARNING - Error MAPE para V820-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,926 - ERROR - Error al predecir con Prophet para V820-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,945 - WARNING - Error MAPE para V403-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,945 - ERROR - Error al predecir con Prophet para V403-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,964 - WARNING - Error MAPE para 16-9405Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,967 - ERROR - Error al predecir con Prophet para 16-9405Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:58:59,991 - WARNING - Error MAPE para V823-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:58:59,991 - ERROR - Error al predecir con Prophet para V823-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,009 - WARNING - Error MAPE para SER-CODRIVADEI es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,009 - ERROR - Error al predecir con Prophet para SER-CODRIVADEI: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,031 - WARNING - Error MAPE para V509-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,031 - ERROR - Error al predecir con Prophet para V509-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,048 - WARNING - Error MAPE para KELL-CODSER es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,048 - ERROR - Error al predecir con Prophet para KELL-CODSER: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,062 - WARNING - Error MAPE para V506-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,069 - ERROR - Error al predecir con Prophet para V506-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,079 - WARNING - Error MAPE para EXPV1421-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,085 - ERROR - Error al predecir con Prophet para EXPV1421-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,098 - WARNING - Error MAPE para 16-8606Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,098 - ERROR - Error al predecir con Prophet para 16-8606Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,120 - WARNING - Error MAPE para 16-86SR44 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,120 - ERROR - Error al predecir con Prophet para 16-86SR44: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,138 - WARNING - Error MAPE para V717-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,138 - ERROR - Error al predecir con Prophet para V717-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,155 - WARNING - Error MAPE para EXPK713396-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,157 - ERROR - Error al predecir con Prophet para EXPK713396-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,171 - WARNING - Error MAPE para V0001-481 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,171 - ERROR - Error al predecir con Prophet para V0001-481: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,188 - WARNING - Error MAPE para 16-81SR44 es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,188 - ERROR - Error al predecir con Prophet para 16-81SR44: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,210 - WARNING - Error MAPE para 16-2335Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,210 - ERROR - Error al predecir con Prophet para 16-2335Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,227 - WARNING - Error MAPE para 16-8620Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,227 - ERROR - Error al predecir con Prophet para 16-8620Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,244 - WARNING - Error MAPE para 16-5800Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,244 - ERROR - Error al predecir con Prophet para 16-5800Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,261 - WARNING - Error MAPE para V713-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,261 - ERROR - Error al predecir con Prophet para V713-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,280 - WARNING - Error MAPE para 16-8461Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,280 - ERROR - Error al predecir con Prophet para 16-8461Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,299 - WARNING - Error MAPE para V413-D es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,299 - ERROR - Error al predecir con Prophet para V413-D: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,318 - WARNING - Error MAPE para 16-8580Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,318 - ERROR - Error al predecir con Prophet para 16-8580Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,335 - WARNING - Error MAPE para 16-8585Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,337 - ERROR - Error al predecir con Prophet para 16-8585Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,352 - WARNING - Error MAPE para 16-8660Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,352 - ERROR - Error al predecir con Prophet para 16-8660Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,371 - WARNING - Error MAPE para 16-8650Q es 524030634248205697024.00%, superior al 5% permitido
+2025-05-17 23:59:00,371 - ERROR - Error al predecir con Prophet para 16-8650Q: "['yhat_lower', 'yhat_upper'] not in index"
+2025-05-17 23:59:00,371 - INFO - MAPE promedio: 418404148420944920576.00%
+2025-05-17 23:59:00,371 - WARNING - La precisión NO cumple con el requisito de error menor al 5%
+2025-05-17 23:59:00,371 - INFO - Calculando predicciones con consumos dinámicos...
+2025-05-17 23:59:00,373 - INFO - Fecha de inicio para predicciones: 2025-02-14 00:00:00
+2025-05-17 23:59:00,373 - INFO - Días de tránsito: 0
+2025-05-17 23:59:00,379 - INFO - Período de consumo inicial: 2025-02-14 a 2025-02-14 (0 días laborables)
+2025-05-17 23:59:00,667 - INFO - Resultados guardados exitosamente en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\predicciones_completas.json
+2025-05-17 23:59:00,718 - INFO - Resultados guardados en formato minificado en C:\Users\pilco\Documents\GitHub\Kpital\Kpital-sistema-inventario\ai_model\data\predicciones_completas.min.json
+2025-05-17 23:59:00,721 - INFO - === PROCESO COMPLETADO ===

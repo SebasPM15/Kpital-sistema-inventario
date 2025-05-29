@@ -1,6 +1,7 @@
-numpy
-pandas
-matplotlib
-scikit-learn
-tensorflow
-prophet
+numpy==1.26.4
+pandas==2.2.1
+matplotlib==3.8.3
+scikit-learn==1.4.1.post1
+tensorflow==2.15.0
+prophet==1.1.2
+openpyxl==3.1.2
