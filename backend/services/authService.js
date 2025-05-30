@@ -166,7 +166,7 @@ class AuthService {
             verification_code_expires: expiresAt,
         });
 
-        await emailService.sendVerificationEmail(email, verificationCode);
+        await emailService.sendPasswordResetEmail(email, verificationCode);
         return { message: 'Se ha enviado un código de verificación a tu correo para restablecer la contraseña' };
     }
 

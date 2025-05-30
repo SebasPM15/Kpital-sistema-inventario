@@ -41,6 +41,7 @@ import 'react-toastify/dist/ReactToastify.css';
 import { toast } from 'react-toastify';
 import ProjectionsPagination from './ProjectionsPagination';
 import ForgotPasswordForm from './ForgotPasswordForm';
+import ProductForm from './ProductForm';
 
 Chart.register(LinearScale, CategoryScale, LineController, PointElement, LineElement, Title);
 declare module 'jspdf' {
@@ -1977,282 +1978,510 @@ const getBusinessDays = (startDate: Date, endDate: Date): number => {
         </div>
     );
 
-const InventoryChart = ({ data, stockActual }: InventoryChartProps) => {
-  const [chartView, setChartView] = useState<'semanal' | 'mensual'>('mensual');
+// Agregar esta interfaz al inicio del archivo, junto con las otras interfaces
+interface DailyDataPoint {
+  dia: string;
+  stock: number;
+  min: number;
+  seguridad: number;
+  consumo: number;
+  transito: number;
+  solicitud?: string;
+  arribo?: string;
+  leadTimeStart?: boolean;
+  leadTimeEnd?: boolean;
+}
 
-  // Encontrar la última proyección con transitDaysApplied: true
-  const lastTransitIndex = [...data].reverse().findIndex(proj => proj.transitDaysApplied === true);
-  const lastIndex = lastTransitIndex === -1 ? data.length : data.length - lastTransitIndex;
-  
-  // Filtrar datos hasta la última proyección con transitDaysApplied
-  const filteredData = data.slice(0, lastIndex);
+// Función para obtener los lunes posteriores al 15 de abril de 2025 hasta la fecha final
+const getMondaysAfterStart = (startDateStr: string, endDateStr: string): string[] => {
+    const startDate = new Date(startDateStr);
+    const endDate = new Date(endDateStr);
+    const dates: string[] = [];
 
-// Función para formatear la fecha de solicitud y calcular los días
-const formatFechaSolicitud = (fechaSolicitud: string, fechaArribo: string) => {
-  if (!fechaSolicitud) return "Sin fecha";
-  const date = new Date(fechaSolicitud);
-  if (isNaN(date.getTime())) return "Fecha inválida";
-
-  const dia = date.toLocaleDateString('es', { day: 'numeric' });
-  const mes = date.toLocaleDateString('es', { month: 'long' }).toUpperCase();
-  const anio = date.getFullYear();
-
-  let dias = 0;
-  if (fechaSolicitud && fechaArribo) {
-    const fechaInicio = new Date(fechaSolicitud);
-    const fechaFin = new Date(fechaArribo);
-    if (!isNaN(fechaInicio.getTime()) && !isNaN(fechaFin.getTime()) && fechaFin >= fechaInicio) {
-      dias = getBusinessDays(fechaInicio, fechaFin)-1; // Restar 1 para no contar el día de solicitud
+    // Asegurarse de que las fechas sean válidas
+    if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        return [];
     }
-  }
 
-  return `${dia} de ${mes} ${anio} (${dias} DÍAS)`;
+    // Agregar la fecha de inicio (15 de abril de 2025)
+    dates.push(startDate.toISOString().split('T')[0]);
+
+    // Calcular los lunes posteriores
+    let currentDate = new Date(startDate);
+    currentDate.setDate(currentDate.getDate() + 1); // Empezar desde el día siguiente
+
+    while (currentDate <= endDate) {
+        const dayOfWeek = currentDate.getDay(); // 0 es domingo, 1 es lunes, etc.
+        if (dayOfWeek === 1) { // Si es lunes
+            dates.push(currentDate.toISOString().split('T')[0]);
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    return dates;
 };
 
-  // Procesar datos para el gráfico mensual
-  const monthlyData = filteredData.map(proyeccion => ({
-    periodo: formatFechaSolicitud(proyeccion.fecha_solicitud, proyeccion.fecha_arribo),
-    stock: proyeccion.stock_proyectado,
-    min: proyeccion.punto_reorden,
-    seguridad: proyeccion.stock_seguridad,
-    consumo: proyeccion.consumo_mensual,
-    fechaReposicion: proyeccion.fecha_reposicion
-  }));
+// Dentro del componente InventoryChart
 
-  // Convertir datos mensuales a semanas basadas en días laborables
-  const weeklyData = filteredData.flatMap(proyeccion => {
-    const semanas = [];
+
+const InventoryChart = ({ data, stockActual }: { data: Proyeccion[], stockActual: number }) => {
+    const [chartView, setChartView] = useState<'mensual' | 'ciclo'>('mensual');
+
+    // Encontrar la última proyección con transitDaysApplied: true (si aplica)
+    const lastTransitIndex = [...data].reverse().findIndex(proj => proj.transitDaysApplied === true);
+    const lastIndex = lastTransitIndex === -1 ? data.length : data.length - lastTransitIndex;
     
-    let numDiasLaborables = 20;
-    let consumoDiario = proyeccion.consumo_mensual / 20;
-    
-    if (proyeccion.fecha_solicitud && proyeccion.fecha_arribo) {
-      const fechaInicio = new Date(proyeccion.fecha_solicitud);
-      const fechaFin = new Date(proyeccion.fecha_arribo);
-      if (!isNaN(fechaInicio.getTime()) && !isNaN(fechaFin.getTime()) && fechaFin >= fechaInicio) {
-        numDiasLaborables = getBusinessDays(fechaInicio, fechaFin);
-        consumoDiario = numDiasLaborables > 0 ? proyeccion.consumo_mensual / numDiasLaborables : proyeccion.consumo_mensual / 20;
-      }
-    }
+    // Filtrar datos hasta la última proyección con transitDaysApplied
+    const filteredData = data.slice(0, lastIndex);
 
-    const numSemanas = Math.ceil(numDiasLaborables / 5);
-    let stock = proyeccion.stock_proyectado + proyeccion.consumo_mensual;
+    // Procesar datos para el gráfico mensual
+    const monthlyData = filteredData.map(proyeccion => {
+        let month, year;
+        try {
+            const parts = proyeccion.mes.split('-');
+            if (parts.length !== 2) {
+                throw new Error('Formato de mes inválido');
+            }
+            month = parseInt(parts[0], 10);
+            year = parseInt(parts[1], 10);
+            if (isNaN(month) || isNaN(year) || month < 1 || month > 12) {
+                throw new Error('Mes o año inválido');
+            }
+        } catch (error) {
+            console.warn(`Error procesando mes para proyección: ${proyeccion.mes}. Usando valores por defecto.`, error);
+            const defaultDate = new Date(proyeccion.fecha_inicio_proyeccion || '2025-01-01');
+            month = defaultDate.getMonth() + 1;
+            year = defaultDate.getFullYear();
+        }
 
-    for (let i = 1; i <= numSemanas; i++) {
-      const diasEnSemana = i === numSemanas && numDiasLaborables % 5 !== 0 ? numDiasLaborables % 5 : 5;
-      const consumoAjustado = consumoDiario * diasEnSemana;
-      stock -= consumoAjustado;
-      
-      semanas.push({
-        semana: `Sem ${i} ${formatFechaSolicitud(proyeccion.fecha_solicitud, proyeccion.fecha_arribo)}`,
-        stock: Math.max(0, stock),
-        min: proyeccion.punto_reorden,
-        seguridad: proyeccion.stock_seguridad,
-        consumo: consumoAjustado
-      });
-    }
-    return semanas;
-  });
+        const monthName = new Date(year, month - 1).toLocaleString('es-ES', { month: 'long' }).replace(/^\w/, c => c.toUpperCase());
+        const formattedPeriod = `${monthName} ${year}`; // Ejemplo: "Abril 2025"
 
-  return (
-    <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm">
-      <div className="flex items-center justify-between mb-4">
-        <h4 className="text-lg font-gotham-bold flex items-center gap-2 text-[#001A30]">
-          <FaChartLine className="text-[#0074CF]" />
-          Proyección de Stock - {chartView === 'semanal' ? 'Semanal' : 'Por Pedidos'}
-        </h4>
-        <select
-          value={chartView}
-          onChange={(e) => setChartView(e.target.value as 'semanal' | 'mensual')}
-          className="px-3 py-1 border rounded-lg text-sm bg-white text-[#001A30] border-[#EDEDED] focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] font-gotham-regular"
-        >
-          <option value="mensual">Vista Por Pedidos</option>
-          <option value="semanal">Vista Semanal</option>
-        </select>
-      </div>
+        return {
+            periodo: formattedPeriod,
+            stock: proyeccion.stock_proyectado,
+            min: proyeccion.punto_reorden,
+            seguridad: proyeccion.stock_seguridad,
+            consumo: proyeccion.consumo_mensual,
+            transito: proyeccion.unidades_a_pedir,
+            fechaSolicitud: proyeccion.fecha_solicitud,
+            fechaArribo: proyeccion.fecha_arribo,
+            unidadesAPedir: proyeccion.unidades_a_pedir,
+        };
+    });
 
-      <div className="mb-4 p-3 bg-[#EDEDED] rounded-lg border border-[#0074CF]/20">
-        <h5 className="text-sm font-gotham-bold text-[#001A30] mb-2 flex items-center gap-2">
-          <FaInfoCircle className="text-[#00B0F0]" />
-          Cómo interpretar este gráfico
-        </h5>
-        <ul className="text-xs font-gotham-light text-[#001A30] space-y-1">
-          <li className="flex items-start gap-2">
-            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#0074CF] flex-shrink-0"></span>
-            <span className="text-sm">
-              <span className="font-gotham-medium">Área Azul:</span> Stock proyectado
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#EF4444] flex-shrink-0"></span>
-            <span className="text-sm">
-              <span className="font-gotham-medium">Línea Roja:</span> Punto de reorden
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#001A30] flex-shrink-0"></span>
-            <span className="text-sm">
-              <span className="font-gotham-medium">Línea Azul Oscuro:</span> Stock de seguridad
-            </span>
-          </li>
-          <li className="flex items-start gap-2">
-            <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#10B981] flex-shrink-0"></span>
-            <span className="text-sm">
-              <span className="font-gotham-medium">Línea Verde:</span> Consumo {chartView === 'semanal' ? 'semanal' : 'durante los días de Tránsito'}
-            </span>
-          </li>
-        </ul>
-      </div>
+    // Eliminar duplicados en los ticks para el gráfico mensual
+    const uniqueMonthlyTicks = Array.from(new Set(monthlyData.map(entry => entry.periodo)));
 
-      <div className="h-96">
-        <ResponsiveContainer width="100%" height="100%">
-          <LineChart
-            data={chartView === 'semanal' ? weeklyData : monthlyData}
-            margin={{ top: 20, right: 30, left: 50, bottom: 100 }}
-          >
-            <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" opacity={0.5} />
-            <XAxis
-              dataKey={chartView === 'semanal' ? 'semana' : 'periodo'}
-              angle={-45}
-              textAnchor="end"
-              tick={{
-                fontSize: 12,
-                fill: "#001A30",
-                fontFamily: 'Gotham Regular'
-              }}
-              tickMargin={20}
-              interval={0}
-              height={80}
-            />
-            <YAxis
-              tick={{
-                fill: "#001A30",
-                fontSize: 12,
-                fontFamily: 'Gotham Regular'
-              }}
-              label={{
-                value: 'Unidades',
-                angle: -90,
-                position: 'insideLeft',
-                fill: "#001A30",
-                style: {
-                  fontSize: 13,
-                  fontFamily: 'Gotham Medium'
+    // Calcular posiciones relativas para las fechas de solicitud y llegada dentro de cada mes
+    const eventPositions = monthlyData.flatMap((entry, monthIndex) => {
+        const events: Array<{ x: number; label: string; type: 'solicitud' | 'arribo' }> = [];
+
+        const fechaSolicitud = new Date(entry.fechaSolicitud);
+        const fechaArribo = new Date(entry.fechaArribo);
+
+        if (!isNaN(fechaSolicitud.getTime())) {
+            const dayOfMonthSolicitud = fechaSolicitud.getDate();
+            const daysInMonthSolicitud = new Date(fechaSolicitud.getFullYear(), fechaSolicitud.getMonth() + 1, 0).getDate();
+            const positionSolicitud = dayOfMonthSolicitud / daysInMonthSolicitud;
+            const xPositionSolicitud = monthIndex + positionSolicitud;
+
+            events.push({
+                x: xPositionSolicitud,
+                label: 'Solicitud de Pedido',
+                type: 'solicitud',
+            });
+        } else {
+            console.warn(`Fecha de solicitud inválida para ${entry.periodo}: ${entry.fechaSolicitud}`);
+        }
+
+        if (!isNaN(fechaArribo.getTime())) {
+            const dayOfMonthArribo = fechaArribo.getDate();
+            const daysInMonthArribo = new Date(fechaArribo.getFullYear(), fechaArribo.getMonth() + 1, 0).getDate();
+            const positionArribo = dayOfMonthArribo / daysInMonthArribo;
+            const xPositionArribo = monthIndex + positionArribo;
+
+            events.push({
+                x: xPositionArribo,
+                label: 'Llegada de Pedido',
+                type: 'arribo',
+            });
+        } else {
+            console.warn(`Fecha de arribo inválida para ${entry.periodo}: ${entry.fechaArribo}`);
+        }
+
+        return events;
+    });
+
+    // Nueva vista: Datos para el gráfico de ciclo y seguridad (basado en días)
+    const cycleData = filteredData.flatMap((proyeccion, index) => {
+        const dailyData: DailyDataPoint[] = [];
+        
+        const fechaSolicitud = new Date(proyeccion.fecha_solicitud);
+        const fechaArribo = new Date(proyeccion.fecha_arribo);
+        if (isNaN(fechaSolicitud.getTime()) || isNaN(fechaArribo.getTime()) || fechaArribo < fechaSolicitud) {
+            console.warn(`Fechas inválidas para proyección ${proyeccion.mes}: solicitud=${proyeccion.fecha_solicitud}, arribo=${proyeccion.fecha_arribo}`);
+            return dailyData;
+        }
+
+        const numDiasLaborables = getBusinessDays(fechaSolicitud, fechaArribo);
+        const consumoDiario = proyeccion.consumo_diario;
+
+        let stock = index === 0 ? stockActual : proyeccion.stock_proyectado + proyeccion.consumo_mensual;
+        let currentDate = new Date(fechaSolicitud);
+        let dayCounter = 0;
+
+        while (currentDate <= fechaArribo) {
+            const dayOfWeek = currentDate.getDay();
+            if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+                dayCounter++;
+                const isArrivalDay = currentDate.toISOString().split('T')[0] === fechaArribo.toISOString().split('T')[0];
+                
+                if (isArrivalDay) {
+                    stock += proyeccion.unidades_a_pedir;
+                } else {
+                    stock -= consumoDiario;
                 }
-              }}
-            />
-            <Tooltip
-              formatter={(value: number, name: string) => {
-                const formattedValue = formatNumber(Number(value));
-                const metricNames = {
-                  stock: 'Stock Proyectado',
-                  min: 'Punto de Reorden',
-                  seguridad: 'Stock de Seguridad',
-                  consumo: chartView === 'semanal' ? 'Consumo Semanal' : 'Consumo'
-                };
 
-                return [
-                  <span className="font-gotham-medium">{formattedValue} unidades</span>,
-                  <span className="font-gotham-regular">{metricNames[name as keyof typeof metricNames] || name}</span>
-                ];
-              }}
-              labelFormatter={(label) => (
-                <span className="font-gotham-medium">
-                  {chartView === 'semanal' ? 'Semana:' : 'Fecha Solicitud:'} {label}
-                </span>
-              )}
-              contentStyle={{
-                backgroundColor: '#FFFFFF',
-                border: '1px solid #EDEDED',
-                borderRadius: '6px',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-                color: '#001A30',
-                fontFamily: 'Gotham Regular',
-                fontSize: '13px',
-                padding: '8px 12px'
-              }}
-            />
-            <Legend
-              wrapperStyle={{
-                paddingTop: 10,
-                paddingBottom: 20,
-                fontSize: '13px',
-                color: '#001A30',
-                fontFamily: 'Gotham Medium'
-              }}
-              layout="horizontal"
-              verticalAlign="top"
-              align="center"
-            />
+                const formattedDate = currentDate.toISOString().split('T')[0];
 
-            <Line
-              type="monotone"
-              dataKey="stock"
-              stroke="#0074CF"
-              strokeWidth={3}
-              name="Stock Proyectado"
-              dot={{ fill: '#0074CF', strokeWidth: 1, r: 5 }}
-              activeDot={{ r: 7 }}
-            />
-            <Area
-              type="monotone"
-              dataKey="stock"
-              fill="#00B0F0"
-              fillOpacity={0.15}
-              stroke="none"
-            />
+                dailyData.push({
+                    dia: formattedDate,
+                    stock: Math.max(0, stock),
+                    min: proyeccion.punto_reorden,
+                    seguridad: proyeccion.stock_seguridad,
+                    consumo: consumoDiario,
+                    transito: proyeccion.unidades_a_pedir,
+                    solicitud: currentDate.toISOString().split('T')[0] === fechaSolicitud.toISOString().split('T')[0] ? 'Solicitud' : undefined,
+                    arribo: isArrivalDay ? 'Llegada' : undefined,
+                    leadTimeStart: currentDate.toISOString().split('T')[0] === fechaSolicitud.toISOString().split('T')[0] ? true : false,
+                    leadTimeEnd: isArrivalDay ? true : false
+                });
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
 
-            <Line
-              type="monotone"
-              dataKey="min"
-              stroke="#EF4444"
-              strokeWidth={2.5}
-              strokeDasharray="5 3"
-              name="Punto de Reorden"
-              dot={{ fill: '#EF4444', strokeWidth: 1, r: 4 }}
-            />
+        return dailyData;
+    });
 
-            <Line
-              type="monotone"
-              dataKey="seguridad"
-              stroke="#001A30"
-              strokeWidth={2.5}
-              name="Stock de Seguridad"
-              dot={{ fill: '#001A30', strokeWidth: 1, r: 4 }}
-              strokeDasharray="4 2"
-            />
+    // Determinar las fechas de los lunes para las etiquetas del eje X en la vista de ciclo
+    const tickDates = chartView === 'ciclo' && cycleData.length > 0 ? (() => {
+        const firstSolicitudDate = new Date(filteredData[0]?.fecha_solicitud);
+        const lastArriboDate = new Date(filteredData[filteredData.length - 1]?.fecha_arribo);
 
-            <Line
-              type="monotone"
-              dataKey="consumo"
-              stroke="#10B981"
-              strokeWidth={2.5}
-              name={`Consumo ${chartView === 'semanal' ? 'Semanal' : 'Consumo durante los días de Tránsito'}`}
-              dot={{ fill: '#10B981', strokeWidth: 1, r: 4 }}
-              strokeDasharray="3 3"
-            />
+        if (isNaN(firstSolicitudDate.getTime()) || isNaN(lastArriboDate.getTime())) {
+            return [];
+        }
 
-            {chartView === 'mensual' && monthlyData.length > 0 && (
-              <ReferenceLine
-                x={monthlyData[0].periodo}
-                stroke="#003268"
-                strokeWidth={2.5}
-                strokeDasharray="3 3"
-                label={{
-                  value: `Stock Actual: ${formatNumber(stockActual)}`,
-                  position: 'top',
-                  fill: '#003268',
-                  fontSize: 12,
-                  fontFamily: 'Gotham Medium',
-                  offset: 10
-                }}
-              />
-            )}
-          </LineChart>
-        </ResponsiveContainer>
-      </div>
-    </div>
-  );
+        let currentDate = new Date(firstSolicitudDate);
+        while (currentDate.getDay() !== 1) {
+            currentDate.setDate(currentDate.getDate() - 1);
+        }
+        const startMonday = currentDate.toISOString().split('T')[0];
+
+        const mondays = [startMonday];
+        currentDate = new Date(startMonday);
+        currentDate.setDate(currentDate.getDate() + 1);
+
+        while (currentDate <= lastArriboDate) {
+            if (currentDate.getDay() === 1) {
+                mondays.push(currentDate.toISOString().split('T')[0]);
+            }
+            currentDate.setDate(currentDate.getDate() + 1);
+        }
+
+        return mondays;
+    })() : [];
+
+    // Determinar datos a mostrar según la vista seleccionada
+    const chartData = chartView === 'mensual' ? monthlyData : cycleData;
+
+    return (
+        <div className="bg-white p-4 rounded-lg border border-[#EDEDED] shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-gotham-bold flex items-center gap-2 text-[#001A30]">
+                    <FaChartLine className="text-[#0074CF]" />
+                    Proyección de Stock - {chartView === 'mensual' ? 'Mensual' : 'Ciclo y Seguridad'}
+                </h4>
+                <select
+                    value={chartView}
+                    onChange={(e) => setChartView(e.target.value as 'mensual' | 'ciclo')}
+                    className="px-3 py-1 border rounded-lg text-sm bg-white text-[#001A30] border-[#EDEDED] focus:ring-2 focus:ring-[#0074CF] focus:border-[#0074CF] font-gotham-regular"
+                >
+                    <option value="mensual">Vista Mensual</option>
+                    <option value="ciclo">Vista Ciclo y Seguridad</option>
+                </select>
+            </div>
+
+            <div className="mb-4 p-3 bg-[#EDEDED] rounded-lg border border-[#0074CF]/20">
+                <h5 className="text-sm font-gotham-bold text-[#001A30] mb-2 flex items-center gap-2">
+                    <FaInfoCircle className="text-[#00B0F0]" />
+                    Cómo interpretar este gráfico
+                </h5>
+                <ul className="text-xs font-gotham-light text-[#001A30] space-y-1">
+                    <li className="flex items-start gap-2">
+                        <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#0074CF] flex-shrink-0"></span>
+                        <span className="text-sm">
+                            <span className="font-gotham-medium">Área Azul:</span> Stock proyectado
+                        </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#EF4444] flex-shrink-0"></span>
+                        <span className="text-sm">
+                            <span className="font-gotham-medium">Línea Roja:</span> Punto de reorden
+                        </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#001A30] flex-shrink-0"></span>
+                        <span className="text-sm">
+                            <span className="font-gotham-medium">Línea Azul Oscuro:</span> Stock de seguridad
+                        </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#10B981] flex-shrink-0"></span>
+                        <span className="text-sm">
+                            <span className="font-gotham-medium">Línea Verde:</span> Consumo {chartView === 'mensual' ? 'mensual' : 'diario'}
+                        </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                        <span className="inline-block w-3 h-3 mt-0.5 rounded-full bg-[#800080] flex-shrink-0"></span>
+                        <span className="text-sm">
+                            <span className="font-gotham-medium">Línea Morada:</span> Unidades en Tránsito
+                        </span>
+                    </li>
+                </ul>
+            </div>
+
+            <div className="h-96">
+                <ResponsiveContainer width="100%" height="100%">
+                    <LineChart
+                        data={chartData}
+                        margin={{ top: 20, right: 20, left: 30, bottom: 80 }}
+                    >
+                        <CartesianGrid strokeDasharray="3 3" stroke="#EDEDED" opacity={0.5} />
+                        <XAxis
+                            dataKey={chartView === 'mensual' ? 'periodo' : 'dia'}
+                            angle={-45}
+                            textAnchor="end"
+                            tick={{
+                                fontSize: 12,
+                                fill: "#001A30",
+                                fontFamily: 'Gotham Regular'
+                            }}
+                            tickFormatter={(value) => {
+                                if (chartView === 'ciclo') {
+                                    const date = new Date(value);
+                                    if (isNaN(date.getTime())) return value;
+                                    return date.toLocaleDateString('es-ES', {
+                                        day: '2-digit',
+                                        month: 'short',
+                                        year: 'numeric'
+                                    });
+                                }
+                                return value; // Mostrar solo el nombre del mes en la vista mensual
+                            }}
+                            tickMargin={15}
+                            interval={chartView === 'ciclo' ? undefined : 0}
+                            ticks={chartView === 'ciclo' ? tickDates : uniqueMonthlyTicks}
+                            height={60}
+                        />
+                        <YAxis
+                            tick={{
+                                fill: "#001A30",
+                                fontSize: 12,
+                                fontFamily: 'Gotham Regular'
+                            }}
+                            label={{
+                                value: 'Unidades',
+                                angle: -90,
+                                position: 'insideLeft',
+                                fill: "#001A30",
+                                style: {
+                                    fontSize: 13,
+                                    fontFamily: 'Gotham Medium'
+                                }
+                            }}
+                        />
+                        <Tooltip
+                            formatter={(value: number, name: string) => {
+                                const formattedValue = formatNumber(Number(value));
+                                const metricNames = {
+                                    stock: 'Stock Proyectado',
+                                    min: 'Punto de Reorden',
+                                    seguridad: 'Stock de Seguridad',
+                                    consumo: chartView === 'mensual' ? 'Consumo Mensual' : 'Consumo Diario',
+                                    transito: 'Unidades en Tránsito'
+                                };
+
+                                return [
+                                    <span className="font-gotham-medium">{formattedValue} unidades</span>,
+                                    <span className="font-gotham-regular">{metricNames[name as keyof typeof metricNames] || name}</span>
+                                ];
+                            }}
+                            labelFormatter={(label) => (
+                                <span className="font-gotham-medium">
+                                    {chartView === 'mensual' ? 'Mes:' : 'Día:'} {label}
+                                </span>
+                            )}
+                            contentStyle={{
+                                backgroundColor: '#FFFFFF',
+                                border: '1px solid #EDEDED',
+                                borderRadius: '6px',
+                                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                                color: '#001A30',
+                                fontFamily: 'Gotham Regular',
+                                fontSize: '13px',
+                                padding: '8px 12px'
+                            }}
+                        />
+                        <Legend
+                            wrapperStyle={{
+                                paddingTop: 10,
+                                paddingBottom: 20,
+                                fontSize: '13px',
+                                color: '#001A30',
+                                fontFamily: 'Gotham Medium'
+                            }}
+                            layout="horizontal"
+                            verticalAlign="top"
+                            align="center"
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="stock"
+                            stroke="#0074CF"
+                            strokeWidth={3}
+                            name="Stock Proyectado"
+                            dot={{ fill: '#0074CF', strokeWidth: 1, r: 5 }}
+                            activeDot={{ r: 7 }}
+                        />
+                        <Area
+                            type="monotone"
+                            dataKey="stock"
+                            fill="#00B0F0"
+                            fillOpacity={0.15}
+                            stroke="none"
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="min"
+                            stroke="#EF4444"
+                            strokeWidth={2.5}
+                            strokeDasharray="5 3"
+                            name="Punto de Reorden"
+                            dot={{ fill: '#EF4444', strokeWidth: 1, r: 4 }}
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="seguridad"
+                            stroke="#001A30"
+                            strokeWidth={2.5}
+                            name="Stock de Seguridad"
+                            dot={{ fill: '#001A30', strokeWidth: 1, r: 4 }}
+                            strokeDasharray="4 2"
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="consumo"
+                            stroke="#10B981"
+                            strokeWidth={2.5}
+                            name={`Consumo ${chartView === 'mensual' ? 'Mensual' : 'Diario'}`}
+                            dot={{ fill: '#10B981', strokeWidth: 1, r: 4 }}
+                            strokeDasharray="3 3"
+                        />
+
+                        <Line
+                            type="monotone"
+                            dataKey="transito"
+                            stroke="#800080"
+                            strokeWidth={2.5}
+                            name="Unidades en Tránsito"
+                            dot={{ fill: '#800080', strokeWidth: 1, r: 4 }}
+                            strokeDasharray="6 2"
+                        />
+
+                        {chartView === 'mensual' && monthlyData.length > 0 && (
+                            <ReferenceLine
+                                x={monthlyData[0].periodo}
+                                stroke="#003268"
+                                strokeWidth={2.5}
+                                strokeDasharray="3 3"
+                                label={{
+                                    value: `Stock Actual: ${formatNumber(stockActual)}`,
+                                    position: 'top',
+                                    fill: '#003268',
+                                    fontSize: 12,
+                                    fontFamily: 'Gotham Medium',
+                                    offset: 10
+                                }}
+                            />
+                        )}
+
+                        {chartView === 'mensual' && eventPositions.map((event, index) => (
+                            <ReferenceLine
+                                key={`event-${event.type}-${index}`}
+                                x={event.x}
+                                stroke="#003268"
+                                strokeWidth={2.5}
+                                strokeDasharray="3 3"
+                                label={{
+                                    value: event.label,
+                                    position: 'top',
+                                    fill: '#003268',
+                                    fontSize: 12,
+                                    fontFamily: 'Gotham Medium',
+                                    offset: 10
+                                }}
+                            />
+                        ))}
+
+                        {chartView === 'ciclo' && chartData.map((entry: any, index: number) => (
+                            <>
+                                {entry.solicitud && (
+                                    <ReferenceLine
+                                        key={`solicitud-${index}`}
+                                        x={entry.dia}
+                                        stroke="#003268"
+                                        strokeWidth={2.5}
+                                        strokeDasharray="3 3"
+                                        label={{
+                                            value: 'Solicitud de Pedido',
+                                            position: 'top',
+                                            fill: '#003268',
+                                            fontSize: 12,
+                                            fontFamily: 'Gotham Medium',
+                                            offset: 10
+                                        }}
+                                    />
+                                )}
+                                {entry.arribo && (
+                                    <ReferenceLine
+                                        key={`arribo-${index}`}
+                                        x={entry.dia}
+                                        stroke="#003268"
+                                        strokeWidth={2.5}
+                                        strokeDasharray="3 3"
+                                        label={{
+                                            value: 'Llegada de Pedido',
+                                            position: 'top',
+                                            fill: '#003268',
+                                            fontSize: 12,
+                                            fontFamily: 'Gotham Medium',
+                                            offset: 10
+                                        }}
+                                    />
+                                )}
+                            </>
+                        ))}
+                    </LineChart>
+                </ResponsiveContainer>
+            </div>
+        </div>
+    );
 };
 
     const VariationChart = ({ data, colors = {
@@ -3012,7 +3241,7 @@ const formatFechaSolicitud = (fechaSolicitud: string, fechaArribo: string) => {
         const [projectionsWithDates, setProjectionsWithDates] = useState<Proyeccion[]>([]);
         const [isRefreshing, setIsRefreshing] = useState(false);
         const [notification, setNotification] = useState<string | null>(null);
-        const [activeTab, setActiveTab] = useState<'general' | 'grafico' | 'historico'>('general');
+        const [activeTab, setActiveTab] = useState<'general' | 'grafico' | 'historico' | 'ciclo'>('general');
         const [lastProjectionWithTransit, setLastProjectionWithTransit] = useState<Proyeccion | null>(null);
 
         // Pagination state
@@ -3165,17 +3394,73 @@ const handleApplyTransitDays = async (projectionIndex: number) => {
         proyeccion.stock_seguridad
     );
 
+// Definimos los tipos para los estilos usando React.CSSProperties
+interface ToastStyles {
+  container: React.CSSProperties;
+  icon: React.CSSProperties;
+  title: React.CSSProperties;
+  message: React.CSSProperties;
+}
+
+// Estilos para el toast personalizado con valores específicos
+const toastStyles: ToastStyles = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column', // Valor específico en lugar de 'string'
+    alignItems: 'center', // Corregido de 'alignitems'
+    justifyContent: 'center', // Valor específico
+    padding: '20px',
+    backgroundColor: '#fff',
+    border: '2px solid #ff0000',
+    borderRadius: '8px',
+    boxShadow: '0 4px 8px rgba(0, 0, 0, 0.2)',
+    maxWidth: '400px',
+    textAlign: 'center',
+  },
+  icon: {
+    color: '#ff0000',
+    fontSize: '40px',
+    marginBottom: '10px',
+  },
+  title: {
+    color: '#ff0000',
+    fontSize: '24px',
+    fontWeight: 'bold',
+    marginBottom: '10px',
+  },
+  message: {
+    color: '#333',
+    fontSize: '16px',
+    lineHeight: '1.5',
+  },
+};
+
+
+// Componente personalizado para el toast con tipo explícito para message
+interface CustomToastProps {
+  message: string;
+}
+
+    // Componente personalizado para el toast
+const CustomToast: React.FC<CustomToastProps> = ({ message }) => (
+  <div style={toastStyles.container}>
+    <FaExclamationTriangle style={toastStyles.icon} />
+    <div style={toastStyles.title}>¡Alerta!</div>
+    <div style={toastStyles.message}>{message}</div>
+  </div>
+);
+
     // Mostrar alerta si NO es el primer pedido y los días exceden la cobertura
     if (!isFirstTransitApplication && days > diasCoberturaRestantes) {
-        const mensaje = `⚠️ Advertencia: Ingresar ${days} días de tránsito excede los ${diasCoberturaRestantes} días de cobertura disponibles. Esto puede causar una ruptura de stock, pero los días se aplicarán. Realiza el pedido lo antes posible.`;
+  const mensaje = `Ingresar ${days} días de tránsito excede los ${diasCoberturaRestantes} días de cobertura disponibles. Esto puede causar una ruptura de stock, pero los días se aplicarán. Realiza el pedido lo antes posible.`;
 
-        toast.error(mensaje, {
-            position: "top-center",
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: true,
+  toast.error(<CustomToast message={mensaje} />, {
+    position: "top-center",
+    autoClose: 15000,
+    hideProgressBar: false,
+    closeOnClick: true,
+    pauseOnHover: true,
+    draggable: true,
         });
         // Nota: No usamos return aquí para permitir que los días se apliquen
     }
@@ -3925,6 +4210,13 @@ const handleApplyTransitDays = async (projectionIndex: number) => {
                                 </div>
                             </div>
                         </div>
+                    )}
+
+                    {activeTab === 'ciclo' && (
+                        <InventoryChart
+                            data={projectionsWithDates}
+                            stockActual={producto.STOCK_FISICO}
+                        />
                     )}
 
                     <div className="pt-4 mt-4 border-t border-slate-200">
